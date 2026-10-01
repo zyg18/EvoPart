@@ -1,0 +1,147 @@
+{
+  "_source": "KaHyPar official build d207276, preset cut_kKaHyPar_sea20, direct k-way",
+  "_eps": 0.02,
+  "_train": [
+    "ibm01",
+    "ibm05",
+    "ibm09",
+    "ibm13",
+    "ibm17",
+    "neuron",
+    "cholesky_mc",
+    "minres",
+    "openCV",
+    "gsm_switch"
+  ],
+  "_ks": [
+    2,
+    3,
+    4
+  ],
+  "_seeds": [
+    1,
+    2,
+    3
+  ],
+  "_note": "cuts recomputed by utils/hgr.evaluate_partition, not taken from the tool's output; cut and time are medians over the seeds and anchor the evaluator's per-cell quality reference and time budget. All ten instances were measured in one batch.",
+  "ibm01_k2": {
+    "cut": 203,
+    "time": 0.75
+  },
+  "ibm01_k3": {
+    "cut": 364,
+    "time": 0.59
+  },
+  "ibm01_k4": {
+    "cut": 548,
+    "time": 1.0
+  },
+  "ibm05_k2": {
+    "cut": 1727,
+    "time": 2.31
+  },
+  "ibm05_k3": {
+    "cut": 2710,
+    "time": 2.06
+  },
+  "ibm05_k4": {
+    "cut": 3021,
+    "time": 3.75
+  },
+  "ibm09_k2": {
+    "cut": 639,
+    "time": 1.76
+  },
+  "ibm09_k3": {
+    "cut": 1440,
+    "time": 2.83
+  },
+  "ibm09_k4": {
+    "cut": 1678,
+    "time": 2.81
+  },
+  "ibm13_k2": {
+    "cut": 848,
+    "time": 2.98
+  },
+  "ibm13_k3": {
+    "cut": 1396,
+    "time": 3.79
+  },
+  "ibm13_k4": {
+    "cut": 2066,
+    "time": 5.41
+  },
+  "ibm17_k2": {
+    "cut": 2342,
+    "time": 9.73
+  },
+  "ibm17_k3": {
+    "cut": 4500,
+    "time": 11.54
+  },
+  "ibm17_k4": {
+    "cut": 6119,
+    "time": 14.35
+  },
+  "neuron_k2": {
+    "cut": 245,
+    "time": 110.16
+  },
+  "neuron_k3": {
+    "cut": 475,
+    "time": 157.22
+  },
+  "neuron_k4": {
+    "cut": 476,
+    "time": 222.26
+  },
+  "cholesky_mc_k2": {
+    "cut": 374,
+    "time": 8.11
+  },
+  "cholesky_mc_k3": {
+    "cut": 1002,
+    "time": 13.58
+  },
+  "cholesky_mc_k4": {
+    "cut": 1092,
+    "time": 13.85
+  },
+  "minres_k2": {
+    "cut": 238,
+    "time": 19.27
+  },
+  "minres_k3": {
+    "cut": 405,
+    "time": 25.66
+  },
+  "minres_k4": {
+    "cut": 570,
+    "time": 32.21
+  },
+  "openCV_k2": {
+    "cut": 735,
+    "time": 76.48
+  },
+  "openCV_k3": {
+    "cut": 934,
+    "time": 119.9
+  },
+  "openCV_k4": {
+    "cut": 846,
+    "time": 161.09
+  },
+  "gsm_switch_k2": {
+    "cut": 1752,
+    "time": 307.36
+  },
+  "gsm_switch_k3": {
+    "cut": 2694,
+    "time": 451.62
+  },
+  "gsm_switch_k4": {
+    "cut": 3869,
+    "time": 684.94
+  }
+}

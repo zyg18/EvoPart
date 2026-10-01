@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+openevolve_output/
+llm_calls/
+eval_log.jsonl
+run_*.log
+build*/
+our_hparter
+dataset/

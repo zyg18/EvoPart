@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>EvoPart: an open, lightweight and strong hypergraph partitioner evolved with an LLM coder</title>
+<meta name="description" content="EvoPart is a single-file, 1,186-line C++ hypergraph partitioner evolved with OpenEvolve from a round-robin program. On ISPD98 and Titan23 its cut is 5.5% lower than KaHyPar's in 70% of KaHyPar's wall time.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='13' height='13' rx='3' fill='%232459d6'/%3E%3Crect x='17' y='2' width='13' height='13' rx='3' fill='%23e0a01a'/%3E%3Crect x='2' y='17' width='13' height='13' rx='3' fill='%2315997f'/%3E%3Crect x='17' y='17' width='13' height='13' rx='3' fill='%23c2467e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f6f7f9; --surface:#ffffff; --ink:#152033; --ink-2:#3d485e; --muted:#667085;
+  --rule:#dce1e9; --rule-2:#eceff4;
+  --evo:#2459d6; --evo-soft:#e6edfc; --hm:#e0782e; --kh:#9aa3af; --cut:#d4413a;
+  --b0:#2459d6; --b1:#e0a01a; --b2:#15997f; --b3:#c2467e;
+  --ab1:#e0a01a; --ab2:#15997f; --ab3:#7c5cd6;
+  --sans:"Schibsted Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#0e1420; --surface:#161e2c; --ink:#e9eef6; --ink-2:#bcc6d6; --muted:#8e99ad;
+    --rule:#28344a; --rule-2:#1f2939;
+    --evo:#7aa2ff; --evo-soft:#1c2c4d; --hm:#f39250; --kh:#7f8898; --cut:#ff6f61;
+    --b0:#7aa2ff; --b1:#f0b53c; --b2:#2fc3a5; --b3:#e76ba3;
+    --ab1:#f0b53c; --ab2:#2fc3a5; --ab3:#a58bff;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--evo);text-underline-offset:3px}
+p{margin:0 0 16px;max-width:68ch}
+code,.mono{font-family:var(--mono);font-size:.88em}
+:focus-visible{outline:2px solid var(--evo);outline-offset:3px;border-radius:4px}
+.skip{position:absolute;left:-9999px;top:8px;background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:8px;z-index:50}
+.skip:focus{left:12px}
+
+/* layout */
+.layout{display:grid;grid-template-columns:212px minmax(0,1fr);gap:64px;max-width:1280px;margin:0 auto;padding:0 36px}
+.toc{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:40px 0 32px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.025em;color:var(--ink);text-decoration:none}
+.brand svg{flex:none}
+.toc h2{font-size:13px;font-weight:600;color:var(--muted);margin:30px 0 6px 12px;letter-spacing:.01em}
+.toc a.item{display:block;padding:7px 12px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:15px;line-height:1.3}
+.toc a.item small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.toc a.item:hover{background:var(--rule-2)}
+.toc a.item.active{background:var(--surface);color:var(--ink);box-shadow:inset 2px 0 0 var(--evo),0 0 0 1px var(--rule)}
+.topnav{display:none}
+main{min-width:0;padding-bottom:40px}
+
+/* hero */
+.hero{padding-top:72px}
+.venue{font-size:14.5px;color:var(--muted);margin:0 0 20px}
+h1{font-size:clamp(68px,10.5vw,136px);line-height:.88;letter-spacing:-.058em;font-weight:800;margin:0 0 0 -4px}
+.tagline{font-size:clamp(20px,2.3vw,26px);line-height:1.36;max-width:36ch;margin:26px 0 30px;color:var(--ink-2);letter-spacing:-.012em}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid var(--rule);color:var(--ink);background:var(--surface);cursor:pointer;font-family:inherit}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn svg{width:17px;height:17px}
+.hero-fig{margin:48px 0 0;background:var(--surface);border:1px solid var(--rule);border-radius:18px;overflow:hidden}
+.hero-fig canvas{display:block;width:100%;height:clamp(270px,36vw,420px)}
+.hero-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;padding:14px 18px;border-top:1px solid var(--rule-2);font-size:14.5px}
+.hero-state{color:var(--ink-2);min-width:0}
+.counter{font-variant-numeric:tabular-nums;white-space:nowrap}
+.counter b{font-size:20px;color:var(--cut);font-weight:700}
+.hero-note{font-size:14px;color:var(--muted);margin:12px 2px 0;max-width:none}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:44px}
+.stat{border-top:2px solid var(--ink);padding-top:14px;text-decoration:none;color:inherit}
+.stat b{display:block;font-size:clamp(36px,4.4vw,50px);letter-spacing:-.045em;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.stat span{display:block;color:var(--muted);font-size:15px;margin-top:10px;line-height:1.4}
+
+/* controls */
+.seg{display:inline-flex;background:var(--rule-2);border-radius:999px;padding:3px;flex-wrap:wrap}
+.seg button{font:inherit;font-size:14px;border:0;background:transparent;color:var(--ink-2);padding:6px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(20,30,50,.14)}
+.ctrls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin-bottom:18px}
+.check{display:inline-flex;gap:8px;align-items:center;font-size:14.5px;color:var(--ink-2);cursor:pointer}
+.check input{width:16px;height:16px;accent-color:var(--evo)}
+.iconbtn{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);padding:6px 14px;border-radius:999px;cursor:pointer}
+
+/* sections */
+section{padding-top:112px;scroll-margin-top:8px}
+h2.sec{font-size:clamp(32px,4.2vw,48px);line-height:1.06;letter-spacing:-.038em;font-weight:700;margin:0 0 16px;max-width:20ch}
+.lede{font-size:19px;line-height:1.55;color:var(--ink-2);max-width:60ch;margin:0 0 40px}
+h3{font-size:21px;letter-spacing:-.02em;line-height:1.25;margin:0 0 10px;font-weight:700}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:26px}
+.cap{font-size:14px;color:var(--muted);margin:14px 0 0;max-width:80ch;line-height:1.5}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.stack{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.panel{min-width:0}
+.muted{color:var(--muted)}
+
+/* overview bars */
+.cmp{display:grid;gap:26px}
+.cmp-row h3{font-size:16px;margin:0 0 10px;color:var(--ink-2);font-weight:600;letter-spacing:0}
+.cmp-line{display:grid;grid-template-columns:78px 1fr 92px;align-items:center;gap:12px;margin:6px 0;font-size:15px}
+.cmp-line .who{color:var(--ink-2)}
+.cmp-line .track{height:14px;background:var(--rule-2);border-radius:7px;overflow:hidden}
+.cmp-line .fill{display:block;height:100%;border-radius:7px}
+.cmp-line .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+
+/* evolution milestones */
+.miles{display:grid;grid-template-columns:repeat(3,1fr);position:relative;gap:20px}
+.mile{position:relative;padding-top:34px}
+.mile::before{content:"";position:absolute;top:9px;left:0;right:-20px;height:2px;background:var(--rule)}
+.mile:last-child::before{right:0}
+.mile .dot{position:absolute;top:2px;left:0;width:16px;height:16px;border-radius:50%;background:var(--surface);border:3px solid var(--kh)}
+.mile.final .dot{border-color:var(--evo);background:var(--evo)}
+.mile .it{font-size:14px;color:var(--muted)}
+.mile h3{margin:2px 0 12px}
+.mile .nums{display:flex;gap:22px;margin-bottom:10px}
+.mile .nums div{font-size:13.5px;color:var(--muted);line-height:1.3}
+.mile .nums b{display:block;font-size:30px;letter-spacing:-.04em;color:var(--ink);font-variant-numeric:tabular-nums}
+.mile.final .nums b{color:var(--evo)}
+.mile p{font-size:15.5px;color:var(--ink-2)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.chip{font-family:var(--mono);font-size:12.5px;padding:3px 9px;border-radius:6px;background:var(--rule-2);color:var(--ink-2)}
+.chip.t{background:var(--evo-soft);color:var(--evo)}
+
+/* harness loop */
+.loop{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;counter-reset:step}
+.loop li{position:relative;background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:20px 18px 18px;counter-increment:step}
+.loop li::before{content:counter(step);display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:13px;font-weight:700;margin-bottom:12px}
+.loop li:not(:last-child)::after{content:"";position:absolute;right:-12px;top:30px;width:10px;height:10px;border-top:2px solid var(--muted);border-right:2px solid var(--muted);transform:rotate(45deg);}
+.loop h3{font-size:17px;margin-bottom:8px}
+.loop p{font-size:14.5px;line-height:1.5;color:var(--ink-2);margin:0 0 10px}
+.loop .dep{border-top:1px dashed var(--rule);padding-top:10px;margin-top:10px;font-size:14px;color:var(--ink)}
+.badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--evo);color:#fff;font-size:12.5px;font-weight:700;margin-right:6px;vertical-align:1px}
+.return{margin:14px 0 0;display:flex;gap:12px;align-items:flex-start;padding:14px 18px;border:1px dashed var(--rule);border-radius:14px;font-size:15px;color:var(--ink-2);max-width:none}
+.return svg{flex:none;margin-top:3px}
+.formula{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 8px;font-size:clamp(14.5px,1.55vw,18.5px);margin:8px 0 6px}
+.term{display:flex;flex-direction:column;align-items:center;gap:6px}
+.term .expr{padding:8px 12px;border-radius:10px;background:var(--rule-2);white-space:nowrap}
+.term .expr.q{background:var(--evo-soft)}
+.term small{font-size:13px;color:var(--muted)}
+.op{padding-top:8px}
+.formula sup,.formula sub{font-size:.62em}
+.quote{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--evo);border-radius:4px 16px 16px 4px;padding:20px 22px;margin:0;min-width:0}
+.quote .it{font-size:14px;color:var(--muted);margin-bottom:4px}
+.quote p{font-size:15.5px;color:var(--ink-2);margin:0}
+
+/* algorithm */
+.pipe{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--rule);border-radius:16px;background:var(--surface);overflow:hidden}
+.pipe li{padding:20px 18px;border-right:1px solid var(--rule-2);position:relative}
+.pipe li:last-child{border-right:0}
+.pipe .n{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pipe h3{font-size:16.5px;margin:4px 0 8px}
+.pipe p{font-size:14px;line-height:1.5;color:var(--ink-2);margin:0}
+.pipe .new{display:inline-block;margin-top:10px;font-size:13px;font-weight:600;color:var(--evo)}
+.feature{margin-top:22px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:28px;align-items:start}
+.feature .tag{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--evo);margin-bottom:8px}
+.feature .tag i{font-style:normal;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--evo);color:#fff;font-size:12.5px}
+.feature p{font-size:16px;color:var(--ink-2)}
+.evidence{font-size:15px;border-top:1px solid var(--rule-2);padding-top:14px;margin-top:6px;color:var(--ink)}
+.lanes{display:grid;gap:14px}
+.lane .lab{font-size:14px;color:var(--ink-2);margin:0 0 4px;font-weight:600}
+.lane svg{width:100%;height:auto;display:block}
+.keep{font-size:14.5px;text-align:center;color:var(--ink);padding:8px;border-radius:10px;background:var(--evo-soft)}
+.sweep svg{width:100%;height:auto;display:block}
+.sweep-status{font-size:15px;color:var(--ink-2);min-height:48px;margin:12px 0}
+
+/* charts */
+.chart{width:100%;height:auto;display:block;overflow:visible}
+.chart text{font-family:var(--sans);font-size:12.5px;fill:var(--muted)}
+.chart text.val{font-size:12px;fill:var(--ink-2);font-variant-numeric:tabular-nums}
+.chart text.grp{font-size:14px;fill:var(--ink);font-weight:600}
+.chart .grid{stroke:var(--rule-2);stroke-width:1}
+.chart .ref{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:4 4;opacity:.55}
+.chart .axis{stroke:var(--rule)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:14px;color:var(--ink-2);margin:0 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.legend i.tri{width:0;height:0;border-radius:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--hm)}
+.legend i.circ{border-radius:50%}
+.legend i.dash{width:22px;height:0;border-radius:0;border-top:2px dashed var(--ink);opacity:.6}
+.legend i.ring{border-radius:50%;background:transparent!important;border:2px solid var(--evo)}
+.summary-note{font-size:15.5px;color:var(--ink-2);margin:16px 0 0;min-height:48px}
+.dotwrap{position:relative}
+.dscroll{overflow-x:auto;padding-top:34px;margin-top:-34px}
+@media (max-width:680px){.dotwrap{min-width:720px}}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.45;padding:9px 12px;border-radius:10px;transform:translate(-50%,calc(-100% - 12px));white-space:nowrap;opacity:0;transition:opacity .12s;z-index:5}
+.tip b{font-weight:700}
+.dotwrap .chart text{font-size:15px}
+.dotwrap .chart text.grp{font-size:16px}
+.dotwrap g.inst{cursor:default}
+.dotwrap g.inst:focus{outline:none}
+.dotwrap g.inst:focus rect.hit, .dotwrap g.inst:hover rect.hit{fill:var(--rule-2);opacity:.8}
+
+/* tables */
+.tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:14px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:right;white-space:nowrap}
+th{font-weight:600;color:var(--ink-2);font-size:13px}
+thead tr:first-child th{font-size:14px;color:var(--ink)}
+thead th{border-bottom:1px solid var(--rule)}
+tbody tr:nth-child(even){background:color-mix(in srgb,var(--rule-2) 45%,transparent)}
+.inst{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1}
+tbody tr:nth-child(even) td.inst{background:color-mix(in srgb,var(--rule-2) 45%,var(--surface))}
+td.kstart,th.kstart{border-left:1px solid var(--rule)}
+td.min{font-weight:700;color:var(--ink)}
+td.evo{color:var(--evo)}
+td.evo.min{color:var(--evo)}
+tfoot td{border-top:1px solid var(--rule);font-weight:600;color:var(--ink)}
+.dag{color:var(--evo);font-weight:700;margin-left:2px}
+.small-table{max-width:640px}
+.small-table td,.small-table th{text-align:right}
+.small-table tr.us td{color:var(--evo);background:var(--evo-soft)}
+.small-table td.min{font-weight:700}
+.subhead{display:flex;align-items:center;gap:12px;font-size:23px;margin:48px 0 8px}
+.subhead:first-of-type{margin-top:0}
+.subnum{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);font-size:15px;flex:none}
+.subtext{font-size:17px;color:var(--ink-2);margin:0 0 18px}
+.tscroll th.sstart,.tscroll td.sstart{border-left:1px solid var(--rule-2)}
+.tscroll th.sys{color:var(--ink)}
+.small-table td:first-child,.small-table th:first-child{text-align:left}
+.small-table tr.us td:first-child{position:static}
+.small-table tr.us td:first-child{background:var(--evo-soft)}
+#resChart,#kChart,#ablChart{max-width:820px}
+
+/* code + citation */
+.repo{display:grid;grid-template-columns:1fr auto;gap:18px 28px;align-items:center}
+.files{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.files li{display:grid;grid-template-columns:170px 1fr;gap:16px;font-size:15px;color:var(--ink-2)}
+.files code{color:var(--ink)}
+.bib{position:relative}
+.bib pre{margin:0;background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:22px 22px;font-family:var(--mono);font-size:13.5px;line-height:1.65;overflow-x:auto;color:var(--ink)}
+.bib .iconbtn{position:absolute;top:12px;right:12px}
+footer{margin-top:120px;padding:28px 0 40px;border-top:1px solid var(--rule);font-size:14px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+@media (max-width:1080px){
+  .loop{grid-template-columns:1fr 1fr}
+  .loop li:nth-child(2)::after{display:none}
+  .pipe{grid-template-columns:1fr 1fr}
+  .pipe li{border-bottom:1px solid var(--rule-2)}
+  .feature{grid-template-columns:1fr}
+}
+@media (max-width:960px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:0;padding:0 20px}
+  .toc{display:none}
+  .topnav{display:flex;position:sticky;top:0;z-index:20;gap:18px;align-items:center;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rule-2);padding:12px 20px;overflow-x:auto;white-space:nowrap}
+  .topnav a{color:var(--ink-2);text-decoration:none;font-size:14.5px}
+  .topnav .brand{font-size:17px}
+  .hero{padding-top:44px}
+  section{padding-top:84px;scroll-margin-top:56px}
+}
+@media (max-width:680px){
+  .stats,.miles,.grid2,.loop,.pipe{grid-template-columns:1fr}
+  .mile::before{display:none}
+  .loop li::after{display:none}
+  .repo{grid-template-columns:1fr}
+  .files li{grid-template-columns:1fr;gap:2px}
+  .cmp-line{grid-template-columns:70px 1fr 74px}
+  .panel{padding:20px}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<nav class="topnav" aria-label="Sections">
+  <a class="brand" href="#top"><svg width="18" height="18" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="13" height="13" rx="3" fill="var(--b0)"/><rect x="17" y="2" width="13" height="13" rx="3" fill="var(--b1)"/><rect x="2" y="17" width="13" height="13" rx="3" fill="var(--b2)"/><rect x="17" y="17" width="13" height="13" rx="3" fill="var(--b3)"/></svg>EvoPart</a>
+  <a href="#evolution">Evolution</a><a href="#harness">Harness</a><a href="#algorithm">Algorithm</a><a href="#results">Results</a><a href="#instances">Per instance</a><a href="#ablations">Ablations</a><a href="#code">Code</a><a href="#citation">Citation</a>
+</nav>
+
+<div class="layout">
+<aside class="toc" aria-label="On this page">
+  <a class="brand" href="#top"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="13" height="13" rx="3" fill="var(--b0)"/><rect x="17" y="2" width="13" height="13" rx="3" fill="var(--b1)"/><rect x="2" y="17" width="13" height="13" rx="3" fill="var(--b2)"/><rect x="17" y="17" width="13" height="13" rx="3" fill="var(--b3)"/></svg>EvoPart</a>
+  <h2>Research</h2>
+  <a class="item" href="#overview">Overview<small>Size, cut and time</small></a>
+  <a class="item" href="#evolution">Evolution<small>From i mod k to EvoPart</small></a>
+  <a class="item" href="#harness">Harness<small>Evolving a whole solver</small></a>
+  <a class="item" href="#algorithm">Algorithm<small>What the model wrote</small></a>
+  <h2>Evaluation</h2>
+  <a class="item" href="#results">Main results<small>ISPD98 and Titan23</small></a>
+  <a class="item" href="#instances">Per instance<small>All 40, held out marked</small></a>
+  <a class="item" href="#larger-k">Larger k<small>k = 5 to 8, never trained on</small></a>
+  <a class="item" href="#ablations">Ablations<small>Harness and components</small></a>
+  <h2>Resources</h2>
+  <a class="item" href="#code">Code<small>Partitioner and harness</small></a>
+  <a class="item" href="#citation">Citation<small>BibTeX</small></a>
+</aside>
+
+<main id="main">
+<header class="hero" id="top">
+  <p class="venue">Anonymous submission to ICLR 2027, under double-blind review</p>
+  <h1>EvoPart</h1>
+  <p class="tagline">An open, lightweight and strong hypergraph partitioner, evolved by an LLM coder.</p>
+  <div class="btns">
+    <a class="btn primary" href="https://anonymous.4open.science/r/EvoPart-4F6C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Code</a>
+    <a class="btn" href="#results">Results</a>
+    <a class="btn" href="#citation">Cite</a>
+  </div>
+
+  <figure class="hero-fig" aria-labelledby="heroState">
+    <canvas id="hg" role="img" aria-label="A toy hypergraph with four parts. Switching from round-robin assignment to a partition lowers the number of cut nets."></canvas>
+    <figcaption class="hero-bar">
+      <span class="hero-state" id="heroState">Iteration 0: vertex <em>i</em> goes to part <em>i</em> mod 4</span>
+      <span class="counter" aria-live="polite">Cut nets <b id="cutNow">0</b> of <span id="cutTotal">0</span></span>
+      <span class="seg" role="group" aria-label="Partition shown">
+        <button type="button" id="showRR" aria-pressed="true">i mod k</button>
+        <button type="button" id="showPart" aria-pressed="false">Partitioned</button>
+      </span>
+    </figcaption>
+  </figure>
+  <p class="hero-note">Toy hypergraph with k = 4, built and partitioned in your browser to show what the cut-net metric counts. Each line bundle is one net; red nets span more than one part. The partition drawn here is a simple geometric split, not EvoPart's output; EvoPart's results are below.</p>
+
+  <div class="stats">
+    <a class="stat" href="#results"><b>0.945×</b><span>KaHyPar's cut, over all 40 ISPD98 and Titan23 instances</span></a>
+    <a class="stat" href="#results"><b>0.703×</b><span>KaHyPar's wall time, all three tools single-threaded</span></a>
+    <a class="stat" href="#overview"><b>1,186</b><span>lines of C++ in one file, 22.5× less code than KaHyPar</span></a>
+  </div>
+</header>
+
+<section id="overview" aria-labelledby="h-overview">
+  <h2 class="sec" id="h-overview">A partitioner you can read in an afternoon.</h2>
+  <p class="lede">hMETIS, the most influential partitioner, is closed source, and KaHyPar, the leading open framework, spans about 27,000 lines of C++. New ideas therefore tend to wrap hMETIS as a black box or replace a single stage of KaHyPar. EvoPart is a complete multilevel partitioner in one self-contained, single-threaded file.</p>
+  <div class="panel">
+    <div class="cmp">
+      <div class="cmp-row">
+        <h3>Lines of C++</h3>
+        <div class="cmp-line"><span class="who">KaHyPar</span><span class="track"><span class="fill" style="width:100%;background:var(--kh)"></span></span><span class="num">26,628</span></div>
+        <div class="cmp-line"><span class="who">EvoPart</span><span class="track"><span class="fill" style="width:4.45%;background:var(--evo)"></span></span><span class="num">1,186</span></div>
+      </div>
+      <div class="cmp-row">
+        <h3>Cut, relative to KaHyPar</h3>
+        <div class="cmp-line"><span class="who">KaHyPar</span><span class="track"><span class="fill" style="width:100%;background:var(--kh)"></span></span><span class="num">1.000</span></div>
+        <div class="cmp-line"><span class="who">EvoPart</span><span class="track"><span class="fill" style="width:94.5%;background:var(--evo)"></span></span><span class="num">0.945</span></div>
+      </div>
+      <div class="cmp-row">
+        <h3>Wall time, relative to KaHyPar</h3>
+        <div class="cmp-line"><span class="who">KaHyPar</span><span class="track"><span class="fill" style="width:100%;background:var(--kh)"></span></span><span class="num">1.000</span></div>
+        <div class="cmp-line"><span class="who">EvoPart</span><span class="track"><span class="fill" style="width:70.3%;background:var(--evo)"></span></span><span class="num">0.703</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Geometric means over ISPD98 (18 instances) and Titan23 (22 instances), k ∈ {2, 3, 4}, ε = 0.02, three seeds each; lower is better. Line counts exclude comments and blank lines; KaHyPar's includes the algorithm libraries it depends on.</p>
+</section>
+
+<section id="evolution" aria-labelledby="h-evo">
+  <h2 class="sec" id="h-evo">Grown from a program that doesn't partition.</h2>
+  <p class="lede">The starting file reads the .hgr, sends vertex <em>i</em> to part <em>i</em> mod <em>k</em>, and writes the result. Every data structure and every phase of EvoPart was written by the model through SEARCH/REPLACE diffs, in a single run of 200 iterations.</p>
+  <div class="miles">
+    <div class="mile"><span class="dot"></span>
+      <div class="it">Iteration 0</div><h3>Initial program</h3>
+      <div class="nums"><div><b>91×</b>KaHyPar's cut</div><div><b>0.015×</b>KaHyPar's time</div></div>
+      <p>103 lines. Perfectly balanced, and nearly every net is cut.</p>
+    </div>
+    <div class="mile"><span class="dot"></span>
+      <div class="it">Iteration 1</div><h3>First child</h3>
+      <div class="nums"><div><b>1.24×</b>KaHyPar's cut</div><div><b>0.08×</b>KaHyPar's time</div></div>
+      <p>Already a working multilevel partitioner.</p>
+    </div>
+    <div class="mile final"><span class="dot"></span>
+      <div class="it">Iteration 189</div><h3>EvoPart</h3>
+      <div class="nums"><div><b>0.93×</b>KaHyPar's cut</div><div><b>0.91×</b>KaHyPar's time</div></div>
+      <p>1,186 lines. The highest score of the run, selected on training-grid measurements only.</p>
+    </div>
+  </div>
+  <p class="cap">Cut and wall time relative to KaHyPar on the training grid. On the full benchmark (all 40 ISPD98 and Titan23 instances), the initial program's cut is 97× KaHyPar's in 0.009× its wall time, and EvoPart's is 0.945× in 0.70×.</p>
+
+  <div class="panel" style="margin-top:32px">
+    <h3>The training grid: 10 instances, k ∈ {2, 3, 4}, 3 seeds</h3>
+    <p class="muted" style="font-size:15.5px">30 cells and 90 runs per candidate. The five ISPD98 instances are evenly spaced from 13k to 185k vertices; the five Titan23 instances are of moderate size and come from different application domains.</p>
+    <div class="chips" aria-label="Training instances">
+      <span class="chip t">ibm01</span><span class="chip t">ibm05</span><span class="chip t">ibm09</span><span class="chip t">ibm13</span><span class="chip t">ibm17</span>
+      <span class="chip t">neuron</span><span class="chip t">cholesky_mc</span><span class="chip t">minres</span><span class="chip t">openCV</span><span class="chip t">gsm_switch</span>
+    </div>
+    <p class="muted" style="font-size:15.5px;margin:10px 0 0">The other 13 ISPD98 and 17 Titan23 instances never fed back into evolution.</p>
+  </div>
+</section>
+
+<section id="harness" aria-labelledby="h-harness">
+  <h2 class="sec" id="h-harness">A harness for evolving a whole solver.</h2>
+  <p class="lede">Built on OpenEvolve. The harness changes how programs enter and stay in the population, and feeds every program's measured cut and wall time back into the prompt that edits it next.</p>
+  <ol class="loop">
+    <li>
+      <h3>Sample from the archive</h3>
+      <p>Four islands of MAP-Elites grids hold up to 150 programs, with migration every 25 generations.</p>
+      <div class="dep"><span class="badge">1</span>Cells are indexed by behavior, not text: speed = log<sub>2</sub> of the slowdown against KaHyPar, and k-profile = q<sub>3</sub>/√(q<sub>2</sub>q<sub>4</sub>).</div>
+    </li>
+    <li>
+      <h3>Build the prompt</h3>
+      <p>The task, training grid and scoring rules; the parent with its description and its last measurements; three inspirations from the parent's island.</p>
+    </li>
+    <li>
+      <h3>Write a child</h3>
+      <p>Claude Opus 5 (weight 0.8) or Claude Fable 5.1 (weight 0.2) replies with diffs. No tools, and no view of the partitioners installed on the machine.</p>
+    </li>
+    <li>
+      <h3>Evaluate in a cascade</h3>
+      <p>1 cell, then 5 cells with one seed, then all 30 cells with three seeds. Cut and balance are recomputed from the partition files the program writes.</p>
+      <div class="dep"><span class="badge">2</span>A child whose 90 cuts hash to the same fingerprint as a resident of its island keeps only the higher-scoring of the two.</div>
+    </li>
+  </ol>
+  <p class="return"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg><span>The score, the cut and wall time of every cell, and whatever the program printed are stored with the child, and appear in the prompt whenever it is chosen as a parent. Programs can therefore build their own diagnostics for their descendants.</span></p>
+
+  <div class="panel" style="margin-top:28px">
+    <h3>Score</h3>
+    <div class="formula" role="img" aria-label="score equals the geometric mean over cells of KaHyPar's cut over the candidate's cut, minus clamp of 0.02 times log base 2 of tau to plus or minus 0.14, minus the minimum of 1e-8 times the character count and 0.003">
+      <span class="term"><span class="expr">score</span></span><span class="op">=</span>
+      <span class="term"><span class="expr q">(∏<sub>i,k</sub> c<sup>ref</sup><sub>i,k</sub> / c<sub>i,k</sub>)<sup>1/N</sup></span><small>cut quality</small></span><span class="op">−</span>
+      <span class="term"><span class="expr">clamp(0.02·log<sub>2</sub>τ, ±0.14)</span><small>time term</small></span><span class="op">−</span>
+      <span class="term"><span class="expr">min(10<sup>−8</sup>·chars, 0.003)</span><small>code size</small></span>
+    </div>
+    <p class="cap" style="margin-top:12px">c<sup>ref</sup> is KaHyPar's median cut over three seeds on cell (i, k); τ is the geometric mean slowdown against KaHyPar. A 2× slowdown costs as much as 2% of cut quality. A cell that fails to compile, crashes, times out or violates the balance constraint scores zero, which zeroes the whole score.</p>
+  </div>
+
+</section>
+
+<section id="algorithm" aria-labelledby="h-algo">
+  <h2 class="sec" id="h-algo">What the model wrote.</h2>
+  <p class="lede">A multilevel recursive-bisection partitioner with the hypergraph in CSR arrays. Most of it follows established practice in hMETIS, KaHyPar and PaToH. Two components are, to our knowledge, not part of existing hypergraph partitioners.</p>
+  <ol class="pipe">
+    <li><span class="n">1</span><h3>Coarsening</h3><p>Heavy-edge clustering by net-size class down to about 200 vertices; identical coarse nets are merged.</p><span class="new">New component ❶ lives here</span></li>
+    <li><span class="n">2</span><h3>Initial partitioning</h3><p>3 to 30 greedy growths from random seeds on the coarsest graph, each polished by FM; the best is kept.</p></li>
+    <li><span class="n">3</span><h3>Refinement</h3><p>Boundary FM at every level, whole-net compound moves on the finer levels, and flow refinement with Dinic's algorithm at the finest level, alternated with FM until the cut stops improving.</p></li>
+    <li><span class="n">4</span><h3>Restarts and V-cycles</h3><p>3 to 24 restarts per bisection with early stopping, then flow, up to 8 V-cycles, and flow again.</p></li>
+    <li><span class="n">5</span><h3>k parts</h3><p>Recursive bisection that reserves 30% of the balance slack for the bisections below; run twice for k ≥ 3.</p><span class="new">New component ❷ lives here</span></li>
+  </ol>
+
+  <div class="panel feature">
+    <div>
+      <div class="tag"><i>1</i>New component</div>
+      <h3>Racing two coarsenings with opposite net-size priorities</h3>
+      <p>Heavy-edge rating barely sees large nets, and single-vertex FM cannot repair them once they are split. When nets with more than 60 pins hold at least 12% of all pins, the restarts of every bisection alternate between two coarsenings and keep the better bisection. Rather than deciding per instance which nets to merge first, EvoPart tries both.</p>
+      <p class="evidence">On the 21 Titan23 instances where it triggers, racing gives a lower cut than either coarsening alone: using only heavy-edge clustering raises the cut by 3%, using only whole-net contraction raises it by 14%. It is no slower than either. <a href="#ablations">See ablations</a></p>
+    </div>
+    <div class="lanes">
+      <div class="lane">
+        <p class="lab">Even restarts: heavy-edge clustering, small nets first</p>
+        <svg viewBox="0 0 300 116" role="img" aria-label="Pairs of vertices are clustered; a bisection line then cuts the large net">
+          <rect x="14" y="30" width="272" height="56" rx="28" fill="none" stroke="var(--evo)" stroke-width="1.6" stroke-dasharray="5 4"/>
+          <g fill="var(--evo-soft)"><ellipse cx="55.7" cy="58" rx="25" ry="15"/><ellipse cx="118.5" cy="58" rx="25" ry="15"/><ellipse cx="181.3" cy="58" rx="25" ry="15"/><ellipse cx="244.1" cy="58" rx="25" ry="15"/></g>
+          <g fill="var(--ink-2)"><circle cx="40" cy="58" r="5.5"/><circle cx="71.4" cy="58" r="5.5"/><circle cx="102.8" cy="58" r="5.5"/><circle cx="134.2" cy="58" r="5.5"/><circle cx="165.6" cy="58" r="5.5"/><circle cx="197" cy="58" r="5.5"/><circle cx="228.4" cy="58" r="5.5"/><circle cx="259.8" cy="58" r="5.5"/></g>
+          <line x1="150" y1="16" x2="150" y2="100" stroke="var(--cut)" stroke-width="2.2"/>
+          <text x="150" y="112" text-anchor="middle" font-size="11.5" fill="var(--cut)" font-family="var(--sans)">the bisection splits the large net</text>
+        </svg>
+      </div>
+      <div class="lane">
+        <p class="lab">Odd restarts: contract whole nets of 8 to 512 pins, largest first</p>
+        <svg viewBox="0 0 300 116" role="img" aria-label="All pins of the large net are merged into one cluster">
+          <rect x="14" y="30" width="272" height="56" rx="28" fill="none" stroke="var(--evo)" stroke-width="1.6" stroke-dasharray="5 4"/>
+          <ellipse cx="150" cy="58" rx="126" ry="18" fill="var(--evo-soft)"/>
+          <g fill="var(--ink-2)"><circle cx="40" cy="58" r="5.5"/><circle cx="71.4" cy="58" r="5.5"/><circle cx="102.8" cy="58" r="5.5"/><circle cx="134.2" cy="58" r="5.5"/><circle cx="165.6" cy="58" r="5.5"/><circle cx="197" cy="58" r="5.5"/><circle cx="228.4" cy="58" r="5.5"/><circle cx="259.8" cy="58" r="5.5"/></g>
+          <text x="150" y="112" text-anchor="middle" font-size="11.5" fill="var(--ink-2)" font-family="var(--sans)">the large net becomes one cluster</text>
+        </svg>
+      </div>
+      <div class="keep">Both run inside the restarts; the better bisection is kept.</div>
+    </div>
+  </div>
+
+  <div class="panel feature">
+    <div>
+      <div class="tag"><i>2</i>New component</div>
+      <h3>Re-partitioning pairs of final blocks</h3>
+      <p>Recursive bisection commits to its top split before the blocks below it exist. After the k blocks are formed, EvoPart merges each pair of blocks, bisects the union again, and keeps the new split whenever it lowers the cut. One pass over all pairs is a sweep; up to three sweeps run while each still lowers the cut.</p>
+      <p class="evidence">At k = 3 and 4, the sweeps lower the cut by 4–9% on Titan23 and 1.5–1.9% on ISPD98, at 1.8× and 1.3× the running time. Under the score, that trade is worth making. <a href="#ablations">See ablations</a></p>
+    </div>
+    <div class="sweep">
+      <svg id="sweepSvg" viewBox="0 0 300 176" role="img" aria-label="Four final blocks; the highlighted pair is merged and bisected again"></svg>
+      <p class="sweep-status" id="sweepStatus" aria-live="polite">One sweep visits all k(k − 1)/2 pairs of blocks; with k = 4 that is six pairs.</p>
+      <div class="btns"><button type="button" class="iconbtn" id="sweepNext">Next pair</button><button type="button" class="iconbtn" id="sweepReset">Reset</button></div>
+    </div>
+  </div>
+
+</section>
+
+<section id="results" aria-labelledby="h-results">
+  <h2 class="sec" id="h-results">Lower cut than KaHyPar and hMETIS.</h2>
+  <p class="lede">Over all 40 instances, EvoPart's cut is 5.5% lower than KaHyPar's and 5.1% lower than hMETIS's, in 70% of KaHyPar's wall time and about the same wall time as hMETIS.</p>
+  <div class="ctrls">
+    <span class="seg" role="group" aria-label="Benchmark suite" id="resSuite"><button type="button" data-v="ispd" aria-pressed="false">ISPD98</button><button type="button" data-v="titan" aria-pressed="true">Titan23</button></span>
+    <span class="seg" role="group" aria-label="Metric" id="resMetric"><button type="button" data-v="avg" aria-pressed="true">Average cut</button><button type="button" data-v="best" aria-pressed="false">Best of 3 seeds</button><button type="button" data-v="time" aria-pressed="false">Wall time</button></span>
+  </div>
+  <div class="panel">
+    <div class="legend"><span><i style="background:var(--hm)"></i>hMETIS 2.0pre1</span><span><i style="background:var(--kh)"></i>KaHyPar (cut_kKaHyPar_sea20)</span><span><i style="background:var(--evo)"></i>EvoPart</span></div>
+    <div id="resChart"></div>
+    <p class="summary-note" id="resNote"></p>
+  </div>
+  <p class="cap">Geometric means of per-instance ratios to KaHyPar (= 1.00, dashed line); lower is better. The vertical axis does not start at zero. ε = 0.02, three seeds per (instance, k), all tools single-threaded on the same machine.</p>
+</section>
+
+<section id="instances" aria-labelledby="h-inst">
+  <h2 class="sec" id="h-inst">Every instance, seen or not.</h2>
+  <p class="lede">EvoPart's cut is lower than KaHyPar's on 31 of the 40 instances and lower than hMETIS's on 27. On the 30 instances never seen during evolution, it is 5.4% lower than KaHyPar's, nearly the same as on the whole benchmark.</p>
+  <div class="ctrls">
+    <span class="seg" role="group" aria-label="Cut statistic" id="dotMetric"><button type="button" data-v="avg" aria-pressed="true">Average of 3 seeds</button><button type="button" data-v="best" aria-pressed="false">Best of 3 seeds</button></span>
+  </div>
+  <div class="panel">
+    <div class="legend"><span><i class="tri"></i>hMETIS</span><span><i class="circ" style="background:var(--evo)"></i>EvoPart, held-out instance</span><span><i class="ring"></i>EvoPart, training instance</span><span><i class="dash"></i>KaHyPar = 1.00 (reference)</span></div>
+    <div class="dscroll"><div class="dotwrap" id="dotChart"><div class="tip" id="dotTip"></div></div></div>
+  </div>
+  <p class="cap">Each point is a system's cut divided by KaHyPar's on the same instance, geometric mean over k ∈ {2, 3, 4}. KaHyPar is the reference at 1.00 (dashed line); points below it beat KaHyPar. Each suite is sorted by EvoPart's ratio. Hover or focus an instance for details.</p>
+
+  <h3 style="margin-top:48px">Raw measurements</h3>
+  <div class="ctrls">
+    <span class="seg" role="group" aria-label="Benchmark suite" id="tabSuite"><button type="button" data-v="ispd" aria-pressed="true">ISPD98</button><button type="button" data-v="titan" aria-pressed="false">Titan23</button></span>
+    <span class="seg" role="group" aria-label="Measurement" id="tabMetric"><button type="button" data-v="seedCut" aria-pressed="true">Cut, all 3 seeds</button><button type="button" data-v="avg" aria-pressed="false">Average cut</button><button type="button" data-v="best" aria-pressed="false">Best cut</button><button type="button" data-v="seedTime" aria-pressed="false">Time, all 3 seeds (s)</button><button type="button" data-v="time" aria-pressed="false">Average time (s)</button></span>
+    <label class="check"><input type="checkbox" id="heldOnly">Held-out instances only</label>
+  </div>
+  <div class="tscroll"><table id="rawTable"></table></div>
+  <p class="cap"><span class="dag">†</span> training instance. Cuts are cut-net counts from the partition files each run writes; times are single-threaded wall times in seconds; s1–s3 are seeds 1–3. The lowest value in each k group is in bold (among all nine runs in the per-seed views). In the average and best views, the last row gives the geometric mean of ratios to KaHyPar over the rows shown.</p>
+</section>
+
+<section id="larger-k" aria-labelledby="h-k">
+  <h2 class="sec" id="h-k">Unseen k, same picture.</h2>
+  <p class="lede">Evolution only ever evaluated k ∈ {2, 3, 4}. At k = 5 to 8, EvoPart stays within 1% of KaHyPar on ISPD98 and below hMETIS throughout, and is 9–11% below KaHyPar on Titan23, where hMETIS and KaHyPar stay within 4% of each other.</p>
+  <div class="ctrls">
+    <span class="seg" role="group" aria-label="Benchmark suite" id="kSuite"><button type="button" data-v="ispd" aria-pressed="false">ISPD98</button><button type="button" data-v="titan" aria-pressed="true">Titan23</button></span>
+    <span class="seg" role="group" aria-label="Cut statistic" id="kMetric"><button type="button" data-v="avg" aria-pressed="true">Average cut</button><button type="button" data-v="best" aria-pressed="false">Best of 3 seeds</button></span>
+  </div>
+  <div class="panel">
+    <div class="legend"><span><i style="background:var(--hm)"></i>hMETIS</span><span><i style="background:var(--kh)"></i>KaHyPar</span><span><i style="background:var(--evo)"></i>EvoPart</span></div>
+    <div id="kChart"></div>
+  </div>
+  <p class="cap">Cut relative to KaHyPar (= 1.00); lower is better. The vertical axis does not start at zero.</p>
+</section>
+
+<section id="ablations" aria-labelledby="h-abl">
+  <h2 class="sec" id="h-abl">What each piece is worth.</h2>
+  <p class="lede">Two separate experiments: one tests the evolution harness, the other tests the two new components of the evolved partitioner.</p>
+
+  <h3 class="subhead"><span class="subnum">A</span>Harness: behavioral vs. textual MAP-Elites dimensions</h3>
+  <p class="subtext">We rerun the evolution three times with OpenEvolve's default textual descriptors. All three runs fall short of EvoPart on both suites.</p>
+  <div class="panel">
+    <div class="tscroll" style="border:0">
+    <table class="small-table">
+      <thead><tr><th>Run</th><th>ISPD98 avg</th><th>ISPD98 best</th><th>Titan23 avg</th><th>Titan23 best</th><th>Time</th></tr></thead>
+      <tbody>
+        <tr><td>Textual 1</td><td>1.002</td><td>1.010</td><td>0.935</td><td>0.951</td><td>0.81</td></tr>
+        <tr><td>Textual 2</td><td>1.023</td><td>1.025</td><td>0.959</td><td>0.970</td><td class="min">0.65</td></tr>
+        <tr><td>Textual 3</td><td>1.003</td><td>1.013</td><td>0.948</td><td>0.965</td><td>1.15</td></tr>
+        <tr class="us"><td>EvoPart</td><td class="min">0.992</td><td class="min">1.000</td><td class="min">0.908</td><td class="min">0.935</td><td>0.70</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="cap">The best-score program of each run, evaluated on the full benchmark, relative to KaHyPar (= 1.00); lower is better, and the best value in each column is in bold. Textual runs use OpenEvolve's default complexity and diversity descriptors, with everything else kept identical. EvoPart comes from a single run.</p>
+  </div>
+
+  <h3 class="subhead"><span class="subnum">B</span>Algorithm: switching off each new component</h3>
+  <p class="subtext">Each variant removes one component from EvoPart with a one-line change.</p>
+  <div class="panel">
+    <div class="ctrls" style="margin:0 0 12px">
+      <span class="seg" role="group" aria-label="Ablation view" id="ablView"><button type="button" data-v="tc" aria-pressed="true">Titan23 cut</button><button type="button" data-v="tt" aria-pressed="false">Titan23 time</button><button type="button" data-v="ic" aria-pressed="false">ISPD98 cut</button><button type="button" data-v="it" aria-pressed="false">ISPD98 time</button></span>
+    </div>
+    <div class="legend"><span><i style="background:var(--ab1)"></i>No whole-net coarsening</span><span><i style="background:var(--ab2)"></i>Whole-net only, no racing</span><span><i style="background:var(--ab3)"></i>No pair sweeps</span></div>
+    <div id="ablChart"></div>
+    <p class="cap">Relative to EvoPart (= 1.00, dashed line). Coarsening variants are measured on the 21 Titan23 instances that trigger whole-net coarsening; they leave ISPD98 unchanged. Pair sweeps only act at k ≥ 3.</p>
+  </div>
+</section>
+
+<section id="code" aria-labelledby="h-code">
+  <h2 class="sec" id="h-code">Get the code.</h2>
+  <div class="panel repo">
+    <div>
+      <p style="font-size:17px;margin:0">The partitioner and the evolution harness are released together.</p>
+      <ul class="files">
+        <li><code>partition.cpp</code><span>EvoPart: an open, lightweight, and strong hypergraph partitioner.</span></li>
+        <li><span class="mono" style="color:var(--ink)">harness</span><span>The OpenEvolve configuration with behavioral MAP-Elites dimensions and partition fingerprinting.</span></li>
+      </ul>
+    </div>
+    <a class="btn primary" href="https://anonymous.4open.science/r/EvoPart-4F6C">Open the anonymous repository</a>
+  </div>
+</section>
+
+<section id="citation" aria-labelledby="h-cite">
+  <h2 class="sec" id="h-cite">Citation.</h2>
+  <p class="lede" style="margin-bottom:24px">The paper is under double-blind review; author information will be added after the review period.</p>
+  <div class="bib">
+<pre id="bibtex">@inproceedings{anonymous2027evopart,
+  title     = {EvoPart: An Open, Lightweight, and Strong Hypergraph
+               Partitioner Evolved with {LLM} Coder},
+  author    = {Anonymous},
+  booktitle = {Submitted to the International Conference on
+               Learning Representations (ICLR)},
+  year      = {2027},
+  note      = {Under review}
+}</pre>
+    <button type="button" class="iconbtn" id="copyBib">Copy BibTeX</button>
+  </div>
+</section>
+
+<footer><span>EvoPart project page</span><span>Anonymous authors, paper under double-blind review</span></footer>
+</main>
+</div>
+
+<noscript><p style="text-align:center;padding:20px">Charts and the hypergraph animation need JavaScript; all numbers are also in the paper's tables.</p></noscript>
+
+<script>
+(function(){
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in (attrs||{})){if(k==="text")e.textContent=attrs[k];else e.setAttribute(k,attrs[k]);}if(parent)parent.appendChild(e);return e;}
+
+/* ---------- segmented controls ---------- */
+function seg(id,onChange){
+  const g=document.getElementById(id);const bs=[...g.querySelectorAll("button")];
+  bs.forEach(b=>b.addEventListener("click",()=>{bs.forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));onChange(b.dataset.v);}));
+  return ()=>bs.find(b=>b.getAttribute("aria-pressed")==="true").dataset.v;
+}
+
+/* ---------- data (paper, Tables 2-11, Figures 5-7) ---------- */
+// per row: name(* = training) | vertices | pins | cut, 27 values | wall time in s, 27 values
+// order: k=2 [hMETIS s1 s2 s3, KaHyPar s1 s2 s3, EvoPart s1 s2 s3], then k=3, then k=4
+const ISPD_RAW=`ibm01*|12752|50566|206 207 206 203 203 203 244 224 203 369 364 367 368 359 364 361 361 363 506 515 506 555 545 548 532 555 562|1.12 1.19 1.24 0.77 0.45 0.75 1.04 1.06 1.05 1.73 0.88 0.8 0.59 0.59 0.56 3.41 2.43 3.46 2.14 2.16 1.9 1.47 1 0.84 3.55 3.61 2.78
+ibm02|19601|81199|361 357 369 353 350 351 357 352 351 365 379 364 373 362 372 366 365 365 650 732 715 826 857 694 639 731 637|3.6 2.17 1.94 0.87 0.85 0.92 1.42 1.03 1.09 3.59 3.23 3.28 1.16 1.17 2.02 4.29 4.78 4.38 4.21 2.9 2.74 1.64 1.6 1.5 5.72 5.2 6.01
+ibm03|23136|93573|963 960 962 1000 998 960 957 969 961 1535 1516 1530 1512 1469 1542 1659 1604 1658 1733 1733 1754 1739 1715 1715 1713 1733 1717|3.18 1.64 1.83 0.97 0.92 1 1.21 1.12 1.24 3.23 2.49 3.04 2.39 1.34 1.35 4.09 4.85 4.84 2.43 2.51 2.78 2.92 2.51 2.58 5.09 5.57 6.37
+ibm04|27507|105859|599 599 598 601 596 618 594 594 593 1249 1256 1248 1230 1225 1236 1208 1237 1241 1681 1675 1702 1664 1668 1668 1658 1663 1632|3.45 3.03 2.02 1 1.06 0.94 1.12 1.23 1.17 3.86 2.37 2.85 1.44 2.46 2.3 6.52 7.02 5.48 4.5 3.2 4.19 1.76 1.74 1.64 5.69 6.17 5.84
+ibm05*|29347|126308|1732 1732 1728 1727 1727 1731 1725 1739 1731 2726 2735 2744 2714 2710 2649 2736 2651 2688 3075 3040 3081 3008 3021 3022 3030 3004 2989|5.41 4.89 5.19 2.31 2.49 1.4 1.87 2.3 2.05 6.51 4.75 7.31 2.06 3.37 2.04 6.37 5.95 6.05 7.81 7.52 6.6 3.75 2.6 3.98 8.92 8.46 9.68
+ibm06|32498|128182|991 1028 990 986 1026 1011 984 983 1046 1299 1318 1319 1331 1298 1298 1300 1300 1303 1555 1532 1525 1808 1490 1762 1601 1511 1493|3.98 3.71 3.79 1.31 2.39 1.47 1.39 1.76 1.41 4.31 2.99 4.34 1.77 1.89 1.87 6.39 7.52 7.9 5.09 3.89 4.6 2.51 2.28 3.06 7.28 8.19 7.51
+ibm07|45926|175639|993 976 988 1010 970 985 980 946 974 1958 1930 1965 1877 1865 1878 1817 1832 1776 2296 2291 2279 2203 2207 2168 2222 2199 2243|4.38 3.38 3.11 1.61 3.42 3.26 2.08 2.61 1.9 5.44 5.05 5.51 3.48 4.07 4.45 8.22 9.18 9.29 5.79 4.45 5.23 2.82 3.04 2.94 11.81 8.8 9.92
+ibm08|51309|204890|1150 1164 1163 1140 1151 1143 1140 1140 1143 2012 2010 2024 2088 2104 2104 1987 2017 2083 2427 2433 2447 2395 2431 2415 2362 2376 2427|6.23 6.18 4.36 2.25 2.32 2.28 1.91 1.9 2.42 8.38 5.46 4.94 4.42 4.61 5.09 10.32 10.68 11.63 8.12 6.95 6.75 3.9 3.82 3.96 11.05 11.55 10.63
+ibm09*|53395|222088|628 627 628 646 625 639 634 635 634 1516 1541 1534 1447 1440 1439 1476 1460 1402 1724 1722 1741 1680 1678 1676 1707 1746 1719|5.17 4.57 3.54 1.76 2.73 1.75 1.84 1.8 1.75 5.01 3.66 4.29 2.83 3.06 2.79 7.6 9.37 9.88 5.2 7.04 5.27 3.13 2.66 2.81 11.75 10.86 10.95
+ibm10|69429|297567|1363 1326 1345 1369 1369 1369 1330 1299 1295 1984 2069 2042 2180 2045 1929 1922 1891 1900 2587 2473 2556 2622 2653 2506 2548 2491 2507|7.13 7.61 7.65 2.53 2.56 2.47 2.64 3.57 2.85 8.52 9.3 7.48 3.42 3.58 3.35 11.49 11.8 10.01 8.92 10.17 8.05 5.9 5.01 6 15.68 16.73 16.21
+ibm11|70558|280786|1071 1080 1068 1066 1134 1380 1070 1209 1078 1834 1855 1809 1850 1788 1906 1995 1883 1834 2575 2548 2553 2538 2600 2521 2618 2487 2499|5.88 4.75 6.29 2.28 3.59 6.9 2.4 2.71 2.07 6.07 5.72 4.57 3.03 3.25 3.03 9.3 10.83 12.59 7.85 7.59 7.17 4.5 4.02 4.23 14.66 16.89 14.84
+ibm12|71076|317760|2143 2084 2078 2068 2163 1966 2072 2071 2071 2973 2971 3154 3122 2869 2814 2940 2924 2945 4166 4022 4123 4073 3933 3925 4047 3965 4036|8.72 9.43 9.19 2.91 2.81 3.08 3.51 3.2 3.28 8.41 9.63 9.71 4.36 5.94 4.73 14.17 12.28 13.41 11.44 10.16 10.19 5.33 6.05 5.39 21.15 19.17 19.94
+ibm13*|84199|357075|853 868 870 848 854 848 876 848 857 1415 1450 1481 1346 1396 1449 1476 1360 1396 1882 1962 1903 1998 2099 2066 2045 1989 2011|8.26 7.1 6.42 3.05 2.98 2.95 2.42 3.44 2.6 8.54 8.02 9.46 3.8 3.67 3.79 13.96 13.37 12.53 8.64 10.32 9.91 4.56 5.41 5.69 15.41 16.43 15.02
+ibm14|147605|546816|1920 1920 1928 1950 1965 1953 1859 1861 1850 2850 2823 2847 2975 2799 2765 2877 2777 2868 3502 3421 3397 3505 3353 3238 3433 3469 3421|15.27 16.63 16.04 6.67 5.71 6.48 4.82 5.11 4.9 14.85 16.55 14.09 7.62 7.64 7.22 25.97 23.49 25.93 16.5 19.99 19.53 9.87 20.48 11.15 25.92 27.41 26.9
+ibm15|161570|715823|2842 2841 2836 2822 2852 2850 2743 2764 3302 4088 4393 4327 4363 4593 4443 4579 4406 4803 4999 4949 5004 4962 4985 4859 5058 5124 5056|18.39 23.74 21.82 7.55 9.96 8.9 5.02 5.08 4.74 23.41 17.86 17.17 12.55 9.86 12.39 21.05 20.88 19.82 22.83 22.8 25.03 11.53 11.02 9.64 31.34 33.2 26.55
+ibm16|183484|778823|2020 2103 2062 2025 2163 2035 2153 2060 2234 3223 3242 3262 3224 3663 3674 3265 3132 3164 4273 4369 4342 4225 4292 4357 4330 4321 4540|21.05 21.59 22.03 8.97 11.72 11.84 5.63 4.64 4.53 25.13 25.01 25.12 9.45 10.37 10.5 27.5 22.68 31.14 22.98 23.82 24.12 12.01 12.42 17.18 31.71 32.7 31.29
+ibm17*|185495|860036|2421 2431 2446 2341 2342 2486 2501 2424 2357 4400 4728 4430 4500 4266 4513 4403 4476 4441 5953 6197 5999 6125 6119 6102 5588 5612 5590|29.18 31.09 28.19 9.73 8.95 11.46 5.65 5.78 5.78 33.68 34.14 28.72 10.31 14.45 11.54 35.11 37.51 31.17 35.81 34.27 33.93 13 18.82 14.35 38.18 37.43 36.75
+ibm18|210613|819697|2018 1990 1958 1916 2204 1975 1842 1825 1828 2796 2721 3028 3082 2502 2642 3201 3084 2761 3410 3272 3363 3106 3094 3026 3219 3236 3266|29.21 25.23 22.04 8.18 8.88 8.17 5.25 5.94 5.09 24.95 31.3 27.32 11.86 10.94 10.57 25.62 24.92 33.53 29.08 30.86 31.24 11.39 12.06 10.89 40.41 37.02 36.19`;
+const TITAN_RAW=`sparcT1_core|91976|503922|1079 989 1035 1348 1221 1345 987 984 992 2369 2296 2394 1965 2157 2346 1926 1822 2231 2791 2676 2745 2730 2676 2873 2408 2304 2355|9.78 10.03 11.47 135.5 141.63 136.49 10.95 5.19 5.78 11.99 11.48 9.95 196.69 188.77 201.25 29.17 30.57 30.25 11.7 12.52 13.43 266.49 267.83 265.14 36.57 35.39 35.53
+neuron*|92290|453181|315 344 425 346 245 245 304 243 243 545 505 521 487 457 475 399 396 410 584 570 654 464 520 476 421 420 416|5.59 5.93 4.85 117.45 109.89 110.16 2.1 2.41 1.4 6.39 6.22 5.81 158.59 150.06 157.22 10.8 9.92 12.17 6.14 7.49 7.22 223.93 222.26 221.36 12.47 13.18 13.43
+stereo_vision|94050|414259|181 175 177 170 169 169 174 179 171 354 354 343 394 448 411 353 354 355 466 468 468 484 493 504 462 440 455|5.62 5.47 5.35 3.41 2.43 3.12 2.66 1.61 2.51 5.47 5.73 5.2 5.16 4.59 4.7 13.71 10.97 12.3 5.32 5.92 6.06 4.96 5.43 5.23 16.73 16.77 18.33
+des90|111221|771009|380 380 380 479 484 435 496 519 485 549 514 622 686 687 575 542 535 534 826 784 758 914 778 794 814 788 752|14.91 14 14.4 134.38 132.19 127.97 3.73 3.71 6.94 13.17 10.62 14.24 173.79 209.92 173.29 29.43 29.71 25.45 13.19 13.37 12.5 217.37 220.45 225.93 36.31 34.69 33.44
+SLAM_spheric|113115|637880|1061 1061 1061 1061 1061 1061 1061 1061 1061 3024 3290 2905 3128 3111 3534 2988 2981 3001 3441 3539 3459 3647 3472 3353 3475 3693 3559|13.89 12.69 13.61 26.16 25.9 25.95 3.69 3.61 3.59 20.31 18.34 16.85 43.19 38.59 47.66 17.09 17.81 18.42 19.17 19.12 17.23 69.69 75.14 73.63 21.34 21.38 21.19
+cholesky_mc*|113250|622678|329 317 426 374 371 431 306 317 308 1091 964 1084 1008 950 1002 824 833 823 1106 1214 1123 1092 1080 1137 1082 1088 1088|8.04 9.49 8.63 8.11 7.73 8.22 2.35 3.34 3.49 9.72 12.53 11.58 11.52 13.58 14.82 21.64 23.33 24.75 13.57 12.77 12.71 11.88 13.85 17.88 29.1 27.65 22.77
+segmentation|138295|801427|180 167 144 144 144 258 136 156 138 555 524 551 579 608 540 478 521 560 665 622 572 614 556 605 582 556 540|13.27 12.74 12.15 15.31 15.42 13.4 4.93 3.8 5.28 11.5 14.54 10.47 20.28 16.93 17.51 24.35 28.76 21.99 14.2 11.64 12.51 20.39 25.19 26.86 27.38 27.87 27.94
+bitonic_mesh|192064|1364768|619 586 588 595 641 594 589 588 585 930 932 928 1171 1022 1250 925 928 930 1219 1172 1153 1164 1422 1304 1266 1094 1271|21.34 20.9 21.57 77.08 76.06 75.12 6.48 7.42 7.51 23.9 23.05 23.5 110.98 107.01 114.14 45.06 37.16 30.59 21.69 22.86 33.01 145.28 147 143.91 52.48 53.21 55.63
+dart|202354|1133096|820 832 833 784 927 839 798 802 798 1333 1348 1273 1522 1336 1369 1166 1194 1179 1503 1466 1502 1419 1597 1451 1361 1397 1384|14.96 13.92 15.14 88.23 92.65 88.66 6.56 6.63 8.73 18.41 15.89 15.92 133.89 143.35 136.73 49.07 45.86 50.26 17.15 20.04 17.17 175.03 177.13 184.39 54.81 54.25 54.57
+openCV*|217453|1273473|493 463 467 689 806 735 544 608 586 568 612 576 798 934 941 546 589 606 675 652 694 814 909 846 641 586 612|12.86 11.86 12.09 76.48 71.77 80.45 11.12 5.02 7.75 14.23 14.12 13.33 122.38 98.74 119.9 55.85 38.58 27.63 15.47 15.19 14.19 162.95 123.79 161.09 53.64 43.2 44.8
+stap_qrd|240240|1260458|414 399 450 456 466 468 383 383 456 540 534 540 545 608 650 540 583 539 826 825 864 816 870 829 716 757 753|25.28 21.82 21.61 17.22 17.46 17.54 6.21 6.59 4.17 23.37 22.32 22.62 22.55 22.22 23.69 24.55 37.9 24.17 22.81 20.65 20.91 28.93 28.43 28.96 41.03 59.6 46.92
+minres*|261359|1309022|249 243 247 238 238 271 239 271 239 391 382 411 405 379 411 405 383 373 485 450 466 575 570 533 452 470 449|17.99 18.21 19.14 19.79 19.27 18.88 11.9 7.59 5.83 19.15 18.66 23.75 26.97 24.97 25.66 34.74 30.99 42.75 20.49 24.52 25.69 32.21 32.92 32.14 52.93 42.59 43.38
+cholesky_bdti|266422|1410151|1335 1176 1197 1607 1163 1164 1163 1163 1163 1951 1913 2127 2377 2344 2450 1803 1728 1733 2193 1971 1947 2367 2068 2107 1877 1903 1876|25.39 25.84 23.72 38.4 45.21 40.95 7.07 5.41 9.22 27.86 26.71 24.9 76.5 76.56 92.2 47.29 48.88 52.51 35.58 33.54 33.31 107.68 71.52 70.63 43.93 53.2 55.78
+denoise|275638|1610717|553 580 529 558 461 460 457 456 457 902 828 851 884 863 820 816 797 853 1216 1019 1156 1145 1173 1175 1095 991 908|29.54 29.92 31.93 40.41 39.15 42.54 12.4 15.73 10.55 27.76 34.47 33.95 53.85 55.34 52.27 46.74 46.59 47.85 29.5 31.3 27.49 70.63 74.47 68.04 55.36 55.16 53.38
+sparcT2_core|300109|1615849|1189 1207 1242 1187 1187 1194 1232 1258 1196 3332 2887 3174 2736 2526 2680 2187 2203 2285 3837 3329 3607 2985 3075 3056 3007 3039 2967|41.72 43.83 34.75 28.81 29.34 39.62 12.28 15.34 12.79 45.63 48.81 50.72 69.82 64.87 66.52 82.43 80.9 93.81 51.39 51.75 44.34 112.21 67.05 66.59 106.58 112.75 112.57
+gsm_switch*|493260|2712782|4944 4962 4971 1752 1691 1753 1715 1728 1753 5282 5232 5225 2694 2782 2683 3300 3548 3247 5474 5500 5422 3510 3879 3869 3604 3536 3569|31.08 36.13 33.13 307.36 314.98 303.23 22.13 17.27 13.93 34.79 41.53 32.49 405.35 471.73 451.62 107.59 84.47 107.78 48.75 44.24 34.25 684.94 739.34 667.9 130.09 126.95 112.53
+mes_noc|547544|3187553|698 773 698 698 703 702 903 984 840 1181 1179 1246 1442 1264 1503 1154 1273 1232 1547 1553 1598 1409 1377 1543 1607 1424 1511|59.47 64.27 59.87 131.4 133.47 132.85 27.93 21.91 30.53 71.08 59.24 60.63 158.9 185.61 209.72 146.34 128.73 135.54 68.75 63.15 61.44 214.89 241.22 230.35 121.34 174.73 151.16
+LU230|574372|2996579|3546 3493 3559 3580 3592 3618 3399 3582 3816 4776 4817 4751 5854 6436 6155 5239 4770 4976 5930 5696 6021 5886 6954 5864 6636 6317 6433|62.6 65.39 53.92 814.74 820.29 928.56 16.63 26.07 29.04 62.07 61.92 59.09 1116.56 1139.85 1021.58 124.48 134.06 122.42 65.93 63.53 66.8 1693.76 1611 1707.58 121.2 124.52 152.06
+LU_Network|635456|3331887|641 660 661 739 612 759 652 710 674 1237 1188 1109 932 1054 1093 961 1053 1014 1852 1777 2025 1740 1808 1667 1526 1593 1542|77.94 70.89 70.6 164.71 145.27 170.21 15.02 10.91 13.78 65.5 77.24 72.49 212.46 203.98 216.99 109.27 138.24 85.29 84.3 95.48 90.66 370.94 397.07 367.78 153.98 140.22 131.84
+sparcT1_chip2|820886|4031921|1086 1568 1000 1106 1171 1083 953 955 1128 1969 1843 2044 1656 1826 1582 1409 1382 1422 2107 2334 2570 1977 1726 1971 1691 1628 1613|90.58 119.83 102.89 285.74 266.26 372.42 32.6 26.72 29.49 90.11 95.45 106.81 392.79 558.42 490.72 203.51 175.49 165.74 141.96 110.97 126.18 1277.32 1325.26 1488.13 225.06 201.59 206.92
+directrf|931275|4812506|573 590 594 663 664 664 664 662 669 759 751 737 780 1414 1042 728 728 730 1196 1103 1083 1393 1370 1254 1355 1120 1124|137.64 171.57 165.98 133.94 128.97 129.98 19.11 45.15 20.77 135.43 154.32 154.71 129.56 137.56 129.21 157.73 114.6 118.51 159.75 163.07 159.9 169.53 170.11 185.94 202.92 172.64 172.28
+bitcoin_miner|1089284|4557197|1514 1581 1646 1571 1568 1570 1542 1553 1521 2695 2666 2636 2401 2469 2314 2312 2343 2310 3382 3374 3204 3144 3007 3172 3069 2949 3089|256.69 291.85 258.14 739.5 706.62 436.78 27.31 21.73 24.04 249.4 256.04 207.23 950.03 1104.69 934.07 163.4 155.68 127.71 162 178.28 200.06 595.73 684.3 645.11 195.77 196.22 199.51`;
+const nums=s=>s.trim().split(/\s+/).map(Number);
+const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+const per=(a,fn)=>{const o=[];for(let k=0;k<3;k++)for(let q=0;q<3;q++)o.push(fn(a.slice(k*9+q*3,k*9+q*3+3)));return o;};
+const parse=raw=>raw.trim().split("\n").map(l=>{const [n,v,p,c,t]=l.split("|"),cut=nums(c),tm=nums(t);
+  return{name:n.replace("*",""),train:n.endsWith("*"),V:+v,pins:+p,seedCut:cut,seedTime:tm,avg:per(cut,mean),best:per(cut,a=>Math.min(...a)),time:per(tm,mean)};});
+const DATA={ispd:parse(ISPD_RAW),titan:parse(TITAN_RAW)};
+const SUITE_NAME={ispd:"ISPD98",titan:"Titan23"};
+
+const SUMMARY={ // Tables 2 and 3: [hMETIS, KaHyPar, EvoPart] at k = 2, 3, 4
+  ispd:{avg:[[0.994,1.005,0.993],[1,1,1],[0.992,0.999,0.986]],best:[[1.007,1.020,1.005],[1,1,1],[0.993,1.008,0.998]],time:[[2.33,1.95,1.85],[1,1,1],[0.88,2.93,2.94]]},
+  titan:{avg:[[1.005,0.967,1.015],[1,1,1],[0.945,0.866,0.915]],best:[[1.013,1.007,1.023],[1,1,1],[0.968,0.909,0.929]],time:[[0.38,0.27,0.22],[1,1,1],[0.13,0.48,0.45]]}
+};
+const LARGEK={ // Figures 5 and 7: k = 5..8
+  ispd:{avg:[[1.011,1.011,1.008,1.005],[1,1,1,1],[0.992,0.999,1.004,0.997]],best:[[1.014,1.017,1.008,1.007],[1,1,1,1],[0.988,1.002,1.001,0.997]]},
+  titan:{avg:[[0.966,1.000,0.978,1.003],[1,1,1,1],[0.903,0.891,0.910,0.914]],best:[[0.993,1.013,0.987,1.021],[1,1,1,1],[0.922,0.899,0.918,0.921]]}
+};
+const ABL={ // Figure 6, relative to EvoPart, k = 2, 3, 4
+  tc:{s:[[1.05,1.02,1.02],[1.28,1.07,1.09],[1.00,1.10,1.04]],lo:0.9,hi:1.3,ticks:[0.9,1.0,1.1,1.2,1.3]},
+  tt:{s:[[1.21,1.11,1.07],[1.00,0.99,0.98],[1.00,0.56,0.55]],lo:0.4,hi:1.3,ticks:[0.4,0.6,0.8,1.0,1.2]},
+  ic:{s:[[null,null,null],[null,null,null],[1.00,1.02,1.02]],lo:0.9,hi:1.3,ticks:[0.9,1.0,1.1,1.2,1.3]},
+  it:{s:[[null,null,null],[null,null,null],[1.00,0.75,0.76]],lo:0.4,hi:1.3,ticks:[0.4,0.6,0.8,1.0,1.2]}
+};
+const SYS=[{name:"hMETIS",c:"--hm"},{name:"KaHyPar",c:"--kh"},{name:"EvoPart",c:"--evo"}];
+
+/* ---------- grouped bar chart ---------- */
+function bars(host,o){
+  host.innerHTML="";
+  const W=640,H=300,m={l:48,r:8,t:28,b:40};
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,class:"chart",role:"img","aria-label":o.label});
+  const y=v=>m.t+(1-(Math.min(Math.max(v,o.lo),o.hi)-o.lo)/(o.hi-o.lo))*(H-m.t-m.b);
+  o.ticks.forEach(t=>{el("line",{x1:m.l,x2:W-m.r,y1:y(t),y2:y(t),class:"grid"},svg);el("text",{x:m.l-10,y:y(t)+4,"text-anchor":"end",text:t.toFixed(o.tickDec)},svg);});
+  el("line",{x1:m.l,x2:W-m.r,y1:H-m.b,y2:H-m.b,class:"axis"},svg);
+  const gw=(W-m.l-m.r)/o.groups.length,n=o.series.length,gap=5,bw=Math.min(46,(gw*0.74-(n-1)*gap)/n);
+  o.groups.forEach((g,gi)=>{
+    const present=o.series.filter(s=>s.values[gi]!=null);
+    const x0=m.l+gi*gw+(gw-(bw*present.length+gap*(present.length-1)))/2;
+    present.forEach((s,si)=>{
+      const v=s.values[gi],x=x0+si*(bw+gap),yt=y(v);
+      const r=el("rect",{x:x,y:yt,width:bw,height:Math.max(1.5,y(o.lo)-yt),rx:3},svg);r.style.fill=`var(${s.c})`;
+      el("title",{text:`${s.name}, ${g}: ${o.fmt(v)}`},r);
+      el("text",{x:x+bw/2,y:yt-7,"text-anchor":"middle",class:"val",text:o.fmt(v)},svg);
+    });
+    el("text",{x:m.l+gi*gw+gw/2,y:H-12,"text-anchor":"middle",class:"grp",text:g},svg);
+  });
+  if(o.ref!=null) el("line",{x1:m.l,x2:W-m.r,y1:y(o.ref),y2:y(o.ref),class:"ref"},svg);
+  host.appendChild(svg);
+}
+
+/* ---------- main results ---------- */
+const NOTES={
+  ispd:{avg:"The three systems are close on ISPD98. EvoPart has the lowest average cut at every k, by under 1% at k = 2 and 3 and by 1.4% against KaHyPar at k = 4.",
+        best:"Best of three seeds, EvoPart matches KaHyPar on ISPD98 overall and is lowest at k = 2.",
+        time:"On ISPD98, EvoPart is faster than both tools at k = 2 and 2.9× slower than KaHyPar at k = 3 and 4, where it runs the whole recursion twice and then sweeps pairs of final blocks."},
+  titan:{avg:"Titan23 is where EvoPart separates from the baselines: 0.908× KaHyPar's cut over the suite and 0.866× at k = 3. hMETIS stays within 0.5% of KaHyPar.",
+         best:"Best of three seeds, EvoPart is 3–9% below KaHyPar on Titan23 at every k.",
+         time:"On Titan23, EvoPart runs in 0.30× KaHyPar's wall time overall, about as fast as hMETIS (0.28×), and is 8.8% below hMETIS in cut."}
+};
+const resState={suite:"titan",metric:"avg"};
+function drawRes(){
+  const {suite,metric}=resState,d=SUMMARY[suite][metric];
+  const isT=metric==="time";
+  const dom=isT?(suite==="ispd"?{lo:0,hi:3.2,ticks:[0,1,2,3],dec:0}:{lo:0,hi:1.2,ticks:[0,0.4,0.8,1.2],dec:1})
+                :(suite==="ispd"?{lo:0.96,hi:1.04,ticks:[0.96,0.98,1.00,1.02,1.04],dec:2}:{lo:0.8,hi:1.05,ticks:[0.8,0.85,0.9,0.95,1.0,1.05],dec:2});
+  bars(document.getElementById("resChart"),{groups:["k = 2","k = 3","k = 4"],series:SYS.map((s,i)=>({...s,values:d[i]})),lo:dom.lo,hi:dom.hi,ticks:dom.ticks,tickDec:dom.dec,ref:1,
+    fmt:v=>isT?v.toFixed(2)+"×":v.toFixed(3),label:`${SUITE_NAME[suite]} ${metric} relative to KaHyPar`});
+  document.getElementById("resNote").textContent=NOTES[suite][metric];
+}
+seg("resSuite",v=>{resState.suite=v;drawRes();});
+seg("resMetric",v=>{resState.metric=v;drawRes();});
+drawRes();
+
+/* ---------- larger k ---------- */
+const kState={suite:"titan",metric:"avg"};
+function drawK(){
+  const d=LARGEK[kState.suite][kState.metric];
+  const dom=kState.suite==="ispd"?{lo:0.97,hi:1.03,ticks:[0.97,0.98,0.99,1.00,1.01,1.02,1.03]}:{lo:0.85,hi:1.05,ticks:[0.85,0.9,0.95,1.0,1.05]};
+  bars(document.getElementById("kChart"),{groups:["k = 5","k = 6","k = 7","k = 8"],series:SYS.map((s,i)=>({...s,values:d[i]})),lo:dom.lo,hi:dom.hi,ticks:dom.ticks,tickDec:2,ref:1,fmt:v=>v.toFixed(3),label:`${SUITE_NAME[kState.suite]} cut at larger k relative to KaHyPar`});
+}
+seg("kSuite",v=>{kState.suite=v;drawK();});
+seg("kMetric",v=>{kState.metric=v;drawK();});
+drawK();
+
+/* ---------- component ablation ---------- */
+const ABL_SERIES=[{name:"No whole-net coarsening",c:"--ab1"},{name:"Whole-net only",c:"--ab2"},{name:"No pair sweeps",c:"--ab3"}];
+function drawAbl(v){
+  const a=ABL[v];
+  bars(document.getElementById("ablChart"),{groups:["k = 2","k = 3","k = 4"],series:ABL_SERIES.map((s,i)=>({...s,values:a.s[i]})),lo:a.lo,hi:a.hi,ticks:a.ticks,tickDec:1,ref:1,fmt:x=>x.toFixed(2),label:"Component ablation relative to EvoPart"});
+}
+seg("ablView",drawAbl);drawAbl("tc");
+
+/* ---------- per-instance dot plot ---------- */
+const gm=a=>Math.exp(a.reduce((s,x)=>s+Math.log(x),0)/a.length);
+function ratio(d,metric,s){return gm([0,1,2].map(k=>d[metric][k*3+s]/d[metric][k*3+1]));}
+function drawDots(metric){
+  const host=document.getElementById("dotChart"),tip=document.getElementById("dotTip");
+  host.querySelectorAll("svg").forEach(s=>s.remove());
+  const W=980,H=360,m={l:128,r:10,t:22,b:46},lo=0.65,hi=1.25;
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,class:"chart",role:"group","aria-label":"Per-instance cut relative to KaHyPar"});
+  const y=v=>m.t+(1-(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo))*(H-m.t-m.b);
+  [0.65,0.75,0.85,0.95,1.05,1.15,1.25].forEach(t=>{el("line",{x1:m.l,x2:W-m.r,y1:y(t),y2:y(t),class:"grid"},svg);el("text",{x:m.l-10,y:y(t)+4,"text-anchor":"end",text:t.toFixed(2)},svg);});
+  el("line",{x1:m.l,x2:W-m.r,y1:y(1),y2:y(1),class:"ref"},svg);
+  const refLab=el("text",{x:m.l-10,y:y(1)+4,"text-anchor":"end",text:"KaHyPar 1.00"},svg);refLab.style.fill="var(--ink)";refLab.style.fontWeight="600";refLab.style.fontSize="13.5px";
+  const items=[];
+  ["ispd","titan"].forEach(s=>{const arr=DATA[s].map(d=>({...d,suite:s,rh:ratio(d,metric,0),re:ratio(d,metric,2)}));arr.sort((a,b)=>a.re-b.re);items.push(...arr);});
+  const slots=items.length+2,step=(W-m.l-m.r)/slots;
+  const xOf=i=>m.l+step*(i+(i>=18?2:0)+0.5);
+  el("text",{x:(xOf(0)+xOf(17))/2,y:H-12,"text-anchor":"middle",class:"grp",text:"ISPD98 (18 instances)"},svg);
+  el("text",{x:(xOf(18)+xOf(39))/2,y:H-12,"text-anchor":"middle",class:"grp",text:"Titan23 (22 instances)"},svg);
+  items.forEach((d,i)=>{
+    const x=xOf(i);
+    const g=el("g",{class:"inst",tabindex:"0","aria-label":`${d.name}, ${SUITE_NAME[d.suite]}, ${d.train?"training":"held-out"} instance. EvoPart ${d.re.toFixed(3)}, hMETIS ${d.rh.toFixed(3)} times KaHyPar's cut.`},svg);
+    const hit=el("rect",{x:x-step/2,y:m.t,width:step,height:H-m.t-m.b,class:"hit",fill:"transparent",rx:4},g);
+    const yh=y(d.rh),over=d.rh>hi;
+    const tri=el("path",{d:`M${x} ${yh-6} L${x+5.5} ${yh+4} L${x-5.5} ${yh+4} Z`},g);tri.style.fill="var(--hm)";
+    if(over){const t=el("text",{x:x+8,y:yh+5,text:d.rh.toFixed(2)+"×"},g);t.style.fill="var(--hm)";}
+    const c=el("circle",{cx:x,cy:y(d.re),r:5.2},g);
+    if(d.train){c.style.fill="var(--surface)";c.style.stroke="var(--evo)";c.style.strokeWidth="2";}else{c.style.fill="var(--evo)";}
+    const show=()=>{
+      tip.innerHTML=`<b>${d.name}</b> (${SUITE_NAME[d.suite]}, ${d.train?"training":"held out"})<br>${d.V.toLocaleString("en-US")} vertices, ${d.pins.toLocaleString("en-US")} pins<br>EvoPart ${d.re.toFixed(3)}× &nbsp; hMETIS ${d.rh.toFixed(3)}×`;
+      const r=host.getBoundingClientRect(),sx=r.width/W;
+      let left=x*sx;left=Math.max(120,Math.min(r.width-120,left));
+      tip.style.left=left+"px";tip.style.top=(Math.min(y(d.re),yh)*sx)+"px";tip.style.opacity="1";
+    };
+    const hide=()=>{tip.style.opacity="0";};
+    g.addEventListener("mouseenter",show);g.addEventListener("mouseleave",hide);g.addEventListener("focus",show);g.addEventListener("blur",hide);
+    g.addEventListener("touchstart",show,{passive:true});
+  });
+  host.insertBefore(svg,tip);
+}
+seg("dotMetric",drawDots);drawDots("avg");
+
+/* ---------- raw table ---------- */
+const tabState={suite:"ispd",metric:"seedCut",held:false};
+const TRAIN_MARK='<span class="dag" title="training instance">†</span>';
+function drawTable(){
+  const t=document.getElementById("rawTable"),{suite,metric,held}=tabState;
+  const rows=DATA[suite].filter(d=>!held||!d.train);
+  const isT=metric==="time"||metric==="seedTime";
+  const f=v=>isT?v.toFixed(2):Math.round(v).toLocaleString("en-US");
+  const key=v=>isT?Math.round(v*100):Math.round(v);
+  let h="";
+  if(metric==="seedCut"||metric==="seedTime"){
+    const arr=metric==="seedCut"?"seedCut":"seedTime";
+    h=`<thead><tr><th rowspan="3" class="inst">Instance</th>`;
+    [2,3,4].forEach(k=>h+=`<th colspan="9" class="kstart" style="text-align:center">k = ${k}</th>`);
+    h+=`</tr><tr>`;
+    [0,1,2].forEach(()=>SYS.forEach((s,i)=>h+=`<th colspan="3" class="sys ${i===0?"kstart":"sstart"}" style="text-align:center">${s.name}</th>`));
+    h+=`</tr><tr>`;
+    [0,1,2].forEach(()=>[0,1,2].forEach(i=>[1,2,3].forEach(j=>h+=`<th class="${j===1?(i===0?"kstart":"sstart"):""}">s${j}</th>`)));
+    h+=`</tr></thead><tbody>`;
+    rows.forEach(d=>{
+      h+=`<tr><td class="inst">${d.name}${d.train?TRAIN_MARK:""}</td>`;
+      [0,1,2].forEach(k=>{const v=d[arr].slice(k*9,k*9+9),mn=Math.min(...v.map(key));
+        v.forEach((x,j)=>{const i=Math.floor(j/3);h+=`<td class="${j===0?"kstart ":(j%3===0?"sstart ":"")}${key(x)===mn?"min ":""}${i===2?"evo":""}">${f(x)}</td>`;});});
+      h+=`</tr>`;
+    });
+    h+=`</tbody>`;
+  } else {
+    h=`<thead><tr><th rowspan="2" class="inst">Instance</th><th rowspan="2">Vertices</th><th rowspan="2">Pins</th>`;
+    [2,3,4].forEach(k=>h+=`<th colspan="3" class="kstart" style="text-align:center">k = ${k}</th>`);
+    h+=`</tr><tr>`;[0,1,2].forEach(()=>h+=`<th class="kstart">hMETIS</th><th>KaHyPar</th><th>EvoPart</th>`);h+=`</tr></thead><tbody>`;
+    rows.forEach(d=>{
+      h+=`<tr><td class="inst">${d.name}${d.train?TRAIN_MARK:""}</td><td>${d.V.toLocaleString("en-US")}</td><td>${d.pins.toLocaleString("en-US")}</td>`;
+      [0,1,2].forEach(k=>{const v=d[metric].slice(k*3,k*3+3),mn=Math.min(...v.map(key));
+        v.forEach((x,s)=>h+=`<td class="${s===0?"kstart ":""}${key(x)===mn?"min ":""}${s===2?"evo":""}">${f(x)}</td>`);});
+      h+=`</tr>`;
+    });
+    h+=`</tbody><tfoot><tr><td class="inst">Geo. mean vs KaHyPar</td><td></td><td></td>`;
+    [0,1,2].forEach(k=>[0,1,2].forEach(s=>{const r=gm(rows.map(d=>d[metric][k*3+s]/d[metric][k*3+1]));h+=`<td class="${s===0?"kstart ":""}${s===2?"evo":""}">${r.toFixed(isT?2:3)}</td>`;}));
+    h+=`</tr></tfoot>`;
+  }
+  t.innerHTML=h;
+}
+seg("tabSuite",v=>{tabState.suite=v;drawTable();});
+seg("tabMetric",v=>{tabState.metric=v;drawTable();});
+document.getElementById("heldOnly").addEventListener("change",e=>{tabState.held=e.target.checked;drawTable();});
+drawTable();
+
+/* ---------- pair sweep stepper ---------- */
+(function(){
+  const svg=document.getElementById("sweepSvg"),status=document.getElementById("sweepStatus");
+  const pos=[[18,12],[156,12],[18,94],[156,94]],w=126,h=70;
+  const pairs=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+  let i=-1;
+  const tiles=pos.map((p,b)=>{
+    const g=el("g",{},svg);
+    const r=el("rect",{x:p[0],y:p[1],width:w,height:h,rx:12},g);r.style.fill=`var(--b${b})`;
+    const t=el("text",{x:p[0]+w/2,y:p[1]+h/2+6,"text-anchor":"middle","font-size":"17","font-weight":"700","font-family":"var(--sans)",fill:"#fff",text:`V${b+1}`},g);
+    g.style.transition=reduce?"none":"opacity .25s";
+    return {g,r};
+  });
+  const link=el("path",{fill:"none","stroke-width":"3","stroke-linecap":"round","stroke-dasharray":"2 6"},svg);link.style.stroke="var(--ink)";link.style.opacity="0";
+  function render(){
+    if(i<0){tiles.forEach(t=>{t.g.style.opacity="1";t.r.style.stroke="none";});link.style.opacity="0";
+      status.textContent="One sweep visits all k(k − 1)/2 pairs of blocks; with k = 4 that is six pairs.";return;}
+    const [a,b]=pairs[i];
+    tiles.forEach((t,j)=>{const on=j===a||j===b;t.g.style.opacity=on?"1":"0.22";t.r.style.stroke=on?"var(--ink)":"none";t.r.style.strokeWidth="3";});
+    const ca=[pos[a][0]+w/2,pos[a][1]+h/2],cb=[pos[b][0]+w/2,pos[b][1]+h/2];
+    link.setAttribute("d",`M${ca[0]} ${ca[1]} L${cb[0]} ${cb[1]}`);link.style.opacity="0.9";
+    status.textContent=`Pair ${i+1} of 6: merge V${a+1} and V${b+1}, bisect their union again, and keep the new split only if the cut drops.`;
+  }
+  document.getElementById("sweepNext").addEventListener("click",()=>{i=(i+1)%pairs.length;render();});
+  document.getElementById("sweepReset").addEventListener("click",()=>{i=-1;render();});
+  render();
+})();
+
+/* ---------- hero: toy hypergraph ---------- */
+(function(){
+  const cv=document.getElementById("hg"),ctx=cv.getContext("2d");
+  function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  const R=rng(2027),A=2.1,K=4;
+  const P=[];let tries=0;
+  while(P.length<128&&tries<40000){tries++;const x=R(),y=R();if(P.every(p=>((p.x-x)*A)**2+(p.y-y)**2>0.0085))P.push({x,y});}
+  const N=P.length,d2=(i,j)=>((P[i].x-P[j].x)*A)**2+(P[i].y-P[j].y)**2;
+  const knn=(i,m)=>P.map((_,j)=>j).filter(j=>j!==i).sort((a,b)=>d2(i,a)-d2(i,b)).slice(0,m);
+  const nets=[],seen=new Set();
+  const add=net=>{const k=[...net].sort((a,b)=>a-b).join(",");if(net.length>1&&!seen.has(k)){seen.add(k);nets.push([...new Set(net)]);}};
+  for(let i=0;i<N;i++){
+    const nb=knn(i,4);
+    for(let rep=0;rep<(R()<0.45?2:1);rep++){
+      const s=R()<0.55?1:(R()<0.6?2:3),pick=nb.slice().sort(()=>R()-0.5).slice(0,s);add([i,...pick]);
+    }
+  }
+  for(let t=0;t<6;t++){const c=Math.floor(R()*N);add([c,...knn(c,7+Math.floor(R()*5))]);}
+  const vnets=P.map(()=>[]);nets.forEach((n,e)=>n.forEach(v=>vnets[v].push(e)));
+  // i mod k
+  const rr=P.map((_,i)=>i%K);
+  // geometric bisection, then greedy single-vertex moves under the balance bound of Eq. (1)
+  const part=new Array(N).fill(0);
+  const idx=P.map((_,i)=>i).sort((a,b)=>P[a].x-P[b].x),half=Math.ceil(N/2);
+  [idx.slice(0,half),idx.slice(half)].forEach((side,s)=>{side.sort((a,b)=>P[a].y-P[b].y);const h2=Math.ceil(side.length/2);side.forEach((v,j)=>part[v]=s*2+(j<h2?0:1));});
+  const cap=Math.floor(1.03*Math.ceil(N/K)),size=new Array(K).fill(0);part.forEach(b=>size[b]++);
+  const isCut=(e,p)=>{const b=p[nets[e][0]];return nets[e].some(v=>p[v]!==b);};
+  for(let pass=0;pass<8;pass++){let moved=0;
+    for(let v=0;v<N;v++){const from=part[v];let best=0,to=-1;
+      const before=vnets[v].reduce((s,e)=>s+isCut(e,part),0);
+      for(let b=0;b<K;b++){if(b===from||size[b]>=cap)continue;part[v]=b;const after=vnets[v].reduce((s,e)=>s+isCut(e,part),0);part[v]=from;if(after-before<best){best=after-before;to=b;}}
+      if(to>=0){part[v]=to;size[from]--;size[to]++;moved++;}}
+    if(!moved)break;}
+  // block offsets for the final picture
+  const cen=[...Array(K)].map(()=>({x:0,y:0,n:0}));part.forEach((b,v)=>{cen[b].x+=P[v].x;cen[b].y+=P[v].y;cen[b].n++;});
+  const off=cen.map(c=>{const dx=(c.x/c.n-0.5)*A,dy=c.y/c.n-0.5,l=Math.hypot(dx,dy)||1;return{x:dx/l,y:dy/l};});
+  document.getElementById("cutTotal").textContent=nets.length;
+
+  const hex=h=>{h=h.replace("#","");if(h.length===3)h=h.split("").map(c=>c+c).join("");const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255];};
+  let t=reduce?1:0,target=t,raf=0,W=0,H=0;
+  const sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
+  function size_(){const r=cv.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+  function draw(){
+    const cols=[0,1,2,3].map(b=>hex(css("--b"+b))),ink=css("--ink"),cut=css("--cut"),surf=css("--surface");
+    const padX=Math.max(26,W*0.05),padY=26,gap=Math.min(16,W*0.018);
+    const prog=P.map(p=>sm((t-0.5*p.x)/0.5));
+    const blk=P.map((_,v)=>prog[v]>=0.5?part[v]:rr[v]);
+    const pos=P.map((p,v)=>({x:padX+p.x*(W-2*padX)+off[part[v]].x*gap*prog[v],y:padY+p.y*(H-2*padY)+off[part[v]].y*gap*prog[v]}));
+    ctx.clearRect(0,0,W,H);
+    let nc=0;const cutFlags=nets.map(n=>{const b=blk[n[0]];const c=n.some(v=>blk[v]!==b);if(c)nc++;return c;});
+    [false,true].forEach(layer=>{
+      nets.forEach((n,e)=>{if(cutFlags[e]!==layer)return;
+        ctx.strokeStyle=layer?cut:ink;ctx.globalAlpha=layer?0.55:0.2;ctx.lineWidth=layer?1.3:1;
+        ctx.beginPath();
+        if(n.length===2){ctx.moveTo(pos[n[0]].x,pos[n[0]].y);ctx.lineTo(pos[n[1]].x,pos[n[1]].y);}
+        else{const cx=n.reduce((s,v)=>s+pos[v].x,0)/n.length,cy=n.reduce((s,v)=>s+pos[v].y,0)/n.length;n.forEach(v=>{ctx.moveTo(cx,cy);ctx.lineTo(pos[v].x,pos[v].y);});}
+        ctx.stroke();
+        if(n.length>2){const cx=n.reduce((s,v)=>s+pos[v].x,0)/n.length,cy=n.reduce((s,v)=>s+pos[v].y,0)/n.length;ctx.globalAlpha=layer?0.75:0.35;ctx.fillStyle=layer?cut:ink;ctx.beginPath();ctx.arc(cx,cy,1.8,0,7);ctx.fill();}
+      });
+    });
+    ctx.globalAlpha=1;
+    const rad=W<520?3.6:4.6;
+    P.forEach((_,v)=>{const a=cols[rr[v]],b=cols[part[v]],q=prog[v];const c=a.map((x,i)=>Math.round(x+(b[i]-x)*q));
+      ctx.beginPath();ctx.arc(pos[v].x,pos[v].y,rad,0,7);ctx.fillStyle=`rgb(${c})`;ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle=surf;ctx.stroke();});
+    document.getElementById("cutNow").textContent=nc;
+  }
+  let last=0;
+  function tick(now){const dt=last?now-last:16;last=now;const sp=dt/2600;
+    if(Math.abs(target-t)<=sp){t=target;draw();raf=0;last=0;return;}
+    t+=Math.sign(target-t)*sp;draw();raf=requestAnimationFrame(tick);}
+  function go(v){target=v;
+    document.getElementById("showRR").setAttribute("aria-pressed",v===0?"true":"false");
+    document.getElementById("showPart").setAttribute("aria-pressed",v===1?"true":"false");
+    document.getElementById("heroState").innerHTML=v===0?"Iteration 0: vertex <em>i</em> goes to part <em>i</em> mod 4":"The same hypergraph, partitioned into 4 balanced parts";
+    if(reduce){t=v;draw();return;}
+    if(!raf){last=0;raf=requestAnimationFrame(tick);}}
+  document.getElementById("showRR").addEventListener("click",()=>go(0));
+  document.getElementById("showPart").addEventListener("click",()=>go(1));
+  size_();draw();
+  new ResizeObserver(()=>{size_();draw();}).observe(cv);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+  if(reduce)go(1);else setTimeout(()=>go(1),900);
+})();
+
+/* ---------- table of contents ---------- */
+(function(){
+  const links=[...document.querySelectorAll(".toc a.item")];
+  const map=new Map(links.map(a=>[a.getAttribute("href").slice(1),a]));
+  const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.remove("active"));const a=map.get(e.target.id);if(a)a.classList.add("active");}});},{rootMargin:"-35% 0px -60% 0px"});
+  document.querySelectorAll("main section").forEach(s=>io.observe(s));
+})();
+
+/* ---------- copy BibTeX ---------- */
+document.getElementById("copyBib").addEventListener("click",async e=>{
+  const b=e.currentTarget,txt=document.getElementById("bibtex").textContent;
+  try{await navigator.clipboard.writeText(txt);}catch(err){const r=document.createRange();r.selectNodeContents(document.getElementById("bibtex"));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand("copy");s.removeAllRanges();}
+  b.textContent="Copied";setTimeout(()=>b.textContent="Copy BibTeX",1600);
+});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+# OpenEvolve configuration for evolving a hypergraph partitioner from scratch: time term
+# 0.02 per doubling clamped to +-0.14, 10-instance training grid, behavioural MAP-Elites
+# axes, fingerprint dedup. The starting program is a single file, partition.cpp, that reads
+# the .hgr and assigns vertex i to part i mod k. There are no fixed source files: parser,
+# data structures, algorithm and output are all evolvable; only the makefile is fixed. The
+# evaluator recomputes cut and balance from the partition file, so the objective cannot be
+# redefined by the program.
+#
+# Baseline: official KaHyPar (preset cut_kKaHyPar_sea20, direct k-way), the
+# strongest published configuration for the cut objective. Reference cuts and
+# per-cell time budgets come from baselines.json (median over 3 seeds).
+
+max_iterations: 500
+# Checkpoint every 5 iterations; run_batches.sh resumes from the latest checkpoint.
+checkpoint_interval: 5
+# Unseeded on purpose: the paper's variance-of-outcome reruns need genuinely
+# independent trajectories, and with a fixed seed the LLM calls are the only
+# source of randomness anyway (sampling and binning replay identically).
+random_seed: null
+log_level: "INFO"
+language: "cpp"
+
+# ---------------------------------------------------------------- LLM
+llm:
+  # Uses the local `claude` CLI, so no API key is needed. Swap in an
+  # OpenAI-compatible endpoint by deleting `provider` and setting
+  # api_base / api_key: "${OPENAI_API_KEY}".
+  provider: "claude_code"
+  models:
+    # max_budget_usd must be set per model: LLMModelConfig defaults it to None,
+    # the claude_code backend does str(None) on it, and the CLI rejects "None".
+    # It is also absent from the llm-level shared-config propagation list.
+    #
+    # A ceiling, not a reservation. Set generously: on overrun the CLI prints
+    # "Error: Exceeded USD budget (N)" to stdout and exits 0, so the backend
+    # treats that sentence as the model's answer and the iteration dies as
+    # "No valid diffs found in response" - a wasted call, not a retry.
+    # Measured cost of a successful call is ~$1-2 (opus-5 runs adaptive
+    # thinking by default and thinking tokens bill as output).
+    # fable-5.1 is priced above opus-5, so its ceiling is doubled to keep the
+    # same ~3x headroom over a typical call.
+    - name: "claude-opus-5"
+      weight: 0.8
+      max_budget_usd: 6.0
+    - name: "claude-fable-5-1"
+      weight: 0.2
+      max_budget_usd: 12.0
+  temperature: 0.7
+  max_tokens: 32000
+  timeout: 3600   # per call; on the stub opus-5 thinks for 25-40 min, under 15 min once the program matures
+  retries: 3
+
+# ---------------------------------------------------------------- Prompt
+prompt:
+  system_message: |
+    You are an expert in VLSI physical design and hypergraph partitioning.
+
+    ## Task
+    Write a hypergraph partitioner in C++ (this run started from a stub that
+    does not partition at all; see below). The training grid is 10 instances
+    x k in {2, 3, 4}: ibm01, ibm05, ibm09, ibm13, ibm17 from ISPD98 (13k-185k vertices) plus neuron, cholesky_mc, minres, openCV
+    and gsm_switch from Titan23 (92k-493k vertices), all in hMETIS .hgr
+    format, unweighted. The Titan23 instances differ in structure, not just
+    size: their nets are far larger on average (gsm_switch has over half of
+    its pins in nets of more than 60 pins), and they come from two families
+    (cholesky_mc / minres are linear-algebra datapaths, neuron / openCV are
+    stream-processing designs), so heuristics tuned on small-net ISPD98
+    graphs, or on one Titan23 design, do not transfer automatically. A
+    previous run that trained on only two Titan23 instances beat KaHyPar on
+    those two and lost 40-50% of its cut quality on the other twenty.
+
+    Objective: minimise the number of cut hyperedges, subject to
+        |V_p| <= floor((1 + eps) * ceil(n / k))    for every part p
+    with eps = 0.02. A cell (instance, k) scores zero as soon as ANY of its
+    seeds violates the balance constraint, crashes, writes a bad partition or
+    is killed at the hard time limit - and one zero cell zeroes the whole
+    geometric mean below. Correctness and feasibility dominate cleverness.
+
+    Your score is
+        cut_quality    = geomean over the grid of (baseline_cut / your_median_cut)
+        combined_score = cut_quality - time_term - length_penalty
+    where the baseline is official KaHyPar (cut_kKaHyPar_sea20, direct k-way),
+    one of the strongest hypergraph partitioners published, and
+        time_term = clamp(0.02 * log2(your_wall_time / KaHyPar_wall_time), -0.14, +0.14)
+    on the geometric mean over cells of the per-cell wall-time ratio. So cut and
+    time are separate: cut_quality is a pure cut comparison (1.0 = KaHyPar's
+    cuts, no upper bound), and every DOUBLING of runtime relative to KaHyPar
+    costs 0.02 while every HALVING earns 0.02 - being faster than KaHyPar is a
+    bonus, not merely un-penalised. A combined_score of 1.0 means KaHyPar's cut
+    at KaHyPar's speed. The exchange rate is deliberate: a 2x speed-up is worth
+    exactly as much as a 2% cut improvement, no more. Never trade more cut than
+    that for speed.
+
+    This run started from a stub, not a partitioner: a program that reads the
+    .hgr file, puts vertex i into part i mod k and writes the result. That is
+    balanced but cuts nearly every hyperedge: cut_quality 0.011 (about 90x
+    KaHyPar's cut), and since it runs in 2% of KaHyPar's time the time term is
+    a +0.12 bonus, so its combined_score is 0.13. Nearly all of the available
+    score is in cut: matching KaHyPar's cut is worth +1.0 on top of the stub,
+    while the time bonus is capped at +0.14. The program you are shown below is
+    the current state of the lineage, which may be anywhere between that stub
+    and a full partitioner; its measurements are in "Last Execution Output".
+    Everything - the data structures and the algorithm - is yours to design.
+
+    Hard limit: a run past 64x the KaHyPar wall time for its cell (floor 60s,
+    ceiling 2400s) is killed, and that zeroes the score. It is a safety net for
+    runaway programs, not the pressure on runtime - the time term is.
+
+    A tiny code-size term is also subtracted: 1e-8 per packed character, capped
+    at 0.003 (0.001 for a 100 KB program) - of two otherwise equal programs the
+    shorter wins. Don't pad; don't shorten at the cost of cut.
+
+    The "Last Execution Output" section of each task reports, per cell, the
+    KaHyPar reference time (kahypar_time_s), your median wall and CPU time
+    (time_median_s, cpu_median_s), the ratio (time_vs_kahypar) and the kill line
+    (hard_limit_s); the "speed" entry shows the resulting time term. Read those
+    rather than assuming - they are measured on the program you are being asked
+    to improve, and they change as it changes.
+
+    The metrics log_speed, k_profile and behavior_fp are bookkeeping for the
+    search itself (grid placement and duplicate detection), not objectives:
+    do not try to optimise them.
+
+    It also echoes the last 2KB of the program's stdout from the final run of
+    the grid (largest instance, highest k). Whatever the program prints is shown
+    to whoever edits it next - so print what your future self will need, e.g. a
+    per-phase wall-time breakdown to see where the budget actually goes. Keep it
+    structured and under 2KB; scoring never reads it (cut and balance are recomputed from the
+    partition file, the RESULT line is trusted by nobody).
+
+    Treat runtime as a real constraint, not an afterthought. The program is
+    SINGLE-THREADED and must stay single-threaded: no std::thread, std::async,
+    OpenMP or any other form of parallelism. Wall-clock time equals CPU time, so
+    the only way to get faster is to do less work or do it smarter. Time you
+    spend must buy cut: a search that doubles the runtime has to improve cut by
+    more than 2% to pay for itself.
+
+    ## Rules
+    - The whole program is the single file `partition.cpp`; you may only modify
+      that file. Any other file you emit is ignored. The makefile is fixed and
+      compiles it with `g++ -std=gnu++17 -O3 -march=native`; no external
+      libraries, no other source files.
+    - Command line, which the evaluator uses exactly like this:
+          ./our_hparter <input.hgr> --k=K --eps=EPS --seed=S --out=<file>
+      Input is hMETIS .hgr format, unweighted: the first non-comment line is
+      "<num_hyperedges> <num_vertices>", then one line per hyperedge with its
+      1-indexed vertex ids; lines starting with '%' are comments.
+    - Output: the partition file named by --out, one line per vertex in vertex
+      order, holding the part id in [0, k). Every part must hold at most
+      floor((1 + eps) * ceil(n / k)) vertices. The evaluator reads this file
+      and recomputes cut and balance itself; anything the program prints is
+      never used for scoring. A missing or malformed file, a part id outside
+      [0, k), a crash, a non-zero exit or an infeasible partition zeroes the
+      cell.
+    - Determinism matters: a run must be reproducible given (input, k, eps, seed).
+      Derive any randomness from --seed; never use `random_device`, `time()`
+      or unseeded `rand()`.
+    - The program must remain single-threaded (see above).
+    - Guard against infeasible sub-problems and empty containers: unbounded
+      retry loops and `.back()` on an empty container are the usual crashes.
+    - Keep the source lean. A comment earns its place by stating a non-obvious
+      invariant in a line or two - not by narrating what the code plainly does.
+      Design history and rationale belong in the Changes Description, not in
+      comments. When you touch the file, delete dead code you find there:
+      functions no path calls, reverted experiments, parameters nothing reads.
+
+    ## How the program is presented
+    The "Current Program" you are shown is the single file `partition.cpp`,
+    wrapped in a header line and @@@ fences:
+
+    * partition.cpp *:
+    @@@
+    ...contents of the file...
+    @@@
+
+    Edit it with SEARCH/REPLACE diffs exactly as the task instructions below
+    require. Keep the `* partition.cpp *:` header line and both `@@@` fences
+    intact - they are how the file is recovered before compiling. Never emit a
+    header for any other file.
+
+    To rewrite the file wholesale, make the SEARCH block its old body and the
+    REPLACE block the new one; do not include the fences in either side.
+
+    You have NO tools in this session: you cannot list directories, read or
+    write files, compile, or run anything, and any attempt to do so (in prose
+    or as a tool-call block) simply ends your turn. Everything you need - the
+    program, the scoring rules and the last measurements - is already in this
+    prompt. There is no working copy on disk for you to edit: the program
+    exists only as the text above, and the harness applies your diffs to its
+    own copy. Your text response IS the submission, and a response that
+    contains no SEARCH/REPLACE diff is discarded outright.
+
+  programs_as_changes_description: true
+
+  system_message_changes_description: |
+    Every change in your response - to the code and to the "Changes Description"
+    block alike - must be a SEARCH/REPLACE diff. The description is prose, but it
+    is edited exactly the same way. For example, if it currently reads
+
+        1. Coarsening: hyperedge coarsening (HEC), smallest nets first.
+        2. Refinement: 2-way FM, bucket gain lists, 2 passes.
+
+    update it with a diff whose SEARCH is that text copied exactly:
+
+    <<<<<<< SEARCH
+    1. Coarsening: hyperedge coarsening (HEC), smallest nets first.
+    2. Refinement: 2-way FM, bucket gain lists, 2 passes.
+    =======
+    1. Coarsening: heavy-edge rating, cluster weight capped by balance slack.
+    2. Refinement: boundary-restricted FM with adaptive stopping.
+    >>>>>>> REPLACE
+
+    Writing the new description as plain text instead of a diff applies nothing,
+    and a response whose description diff fails to apply is discarded entirely,
+    its code diffs included.
+
+  initial_changes_description: |
+    1. Reads the .hgr file into a vector of pin lists.
+    2. Assigns vertex i to part i mod k. No optimisation of any kind.
+    3. Writes the partition file and prints the cut it computes.
+
+  include_artifacts: true
+  max_artifact_bytes: 24576
+  num_top_programs: 2
+  num_diverse_programs: 1
+  # Defaults here are tuned for ~100-line programs; ours is ~1000 lines packed.
+  suggest_simplification_after_chars: 80000
+  concise_implementation_max_lines: 400
+  comprehensive_implementation_min_lines: 1500
+
+# ---------------------------------------------------------------- Database
+database:
+  # DatabaseConfig has its own default of 42 and the top-level null does not
+  # override a non-None default, so sampling must be unseeded here explicitly.
+  random_seed: null
+  population_size: 150
+  archive_size: 40
+  num_islands: 4
+  migration_interval: 25
+  migration_rate: 0.1
+  elite_selection_ratio: 0.2
+  exploration_ratio: 0.2
+  exploitation_ratio: 0.7
+  # Behavioural MAP-Elites axes instead of the default ["complexity",
+  # "diversity"]: both are metrics the evaluator attaches to every result.
+  #   log_speed - clamp(log2(time_vs_kahypar), -2, 5): where the program sits
+  #     on the speed spectrum, in doublings relative to KaHyPar. The stub starts
+  #     below -2 and sits in the edge bin until it slows down, which is expected.
+  #   k_profile - q3 / sqrt(q2 * q4) over per-k cut-quality geomeans, clamped
+  #     to [0.5, 2]: whether the program is relatively better at k=3 or at the
+  #     power-of-two ks (recursive-bisection lineages skew low, direct k-way
+  #     lineages high).
+  # Cell fitness stays combined_score; these only decide which cell a program
+  # competes for. Bins are min-max over observed values (both inputs clamped,
+  # so one outlier cannot squeeze everyone into one bin). Exact duplicates are
+  # additionally filtered per island via the behavior_fp metric - see
+  # start_evolution.py.
+  feature_dimensions: ["log_speed", "k_profile"]
+  feature_bins: 10
+
+# ---------------------------------------------------------------- Evaluator
+evaluator:
+  # Per stage, not cumulative, and it must exceed the evaluator's own worst case
+  # or the framework kills the stage and discards every metric it had produced.
+  # stage3 is 30 cells x 3 SEEDS = 90 runs over ibm01/05/09/13/17 + neuron /
+  # cholesky_mc / minres / openCV / gsm_switch, minus the runs stages 1-2
+  # already did (results are reused). The evaluator runs a stage's remaining
+  # runs RUN_WORKERS=12 at a time (each run is single-threaded, enforced),
+  # longest cells first. Sized for a slow but working program: ~11 CPU-hours
+  # of runs in 12 slots, i.e. roughly an hour of wall time, with the 9
+  # gsm_switch runs (1000-1500s each) and the openCV / minres runs (500-1000s)
+  # filling the first wave. A program that hangs on every cell would need
+  # ~8300s (45 Titan runs mostly at the MAX_HARD=2400s ceiling) - more than
+  # this timeout, so such a program is killed by the framework instead of by
+  # the per-cell limits; either way it scores 0, the difference is only the
+  # lost per-cell error feedback.
+  timeout: 7200
+  cascade_evaluation: true
+  # Set just below the stub's own gate scores (0.125 at stage 1, 0.132 at
+  # stage 2: cut_quality 0.02-0.03 plus the time bonus), so the stub and every
+  # non-broken child reach the full grid and get per-cell feedback; a program
+  # with KaHyPar-level cuts passes even at 32x KaHyPar time (time term -0.1).
+  cascade_thresholds: [0.1, 0.12]
+  # 4 x RUN_WORKERS(12) = at most 48 single-threaded candidate processes from this
+  # run. The machine has 64 physical cores (128 with SMT) shared with other
+  # users (load ~28 at the time of writing); staying under the physical-core
+  # count avoids SMT sibling sharing, which is what turns concurrent runs into
+  # 15-35% slower and noisier wall times on the memory-bound Titan cells.
+  parallel_evaluations: 4
+  max_retries: 1
+  use_llm_feedback: false
+  enable_artifacts: true
+
+# ---------------------------------------------------------------- Evolution
+diff_based_evolution: true
+# Only a gate on admission, not part of the score: a packed source over this
+# size is rejected before evaluation. Sized so a mature partitioner (~100 KB
+# packed) keeps growing room, with prompt-size headroom checked: 150KB code +
+# ~60KB history stays under the 250KB pre-flight cap of utils/llm_capture.py.
+max_code_length: 150000
